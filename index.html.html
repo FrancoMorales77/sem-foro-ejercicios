@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Semáforo de ejercicios (prototipo v3.1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<!--
+  SEMÁFORO DE EJERCICIOS · v3.1 (Iteración 1)
+
+  Registro de cambios (v3 → v3.1)
+  - Durante el ejercicio, el panel (semáforo, mensaje, contadores y botones) va al lado
+    de la cámara en pantallas anchas o con el celular horizontal. En celular vertical
+    sigue debajo, porque al lado el video quedaría muy chico.
+  - Pantalla grande: ahora la cámara ocupa toda la pantalla. El color del semáforo se
+    ve como un marco grueso alrededor del video, y el mensaje, los contadores y los
+    botones quedan en una franja pequeña abajo, sobre el video.
+
+  Registro de cambios (v2 → v3)
+  - Una sola app con los cuatro ejercicios: sentadilla (antes solo en v1), sentadilla
+    isométrica, plancha y flexiones.
+  - El código quedó en tres bloques: RANGOS (números editables por un profesional),
+    EJERCICIOS (qué mide y cómo evalúa cada ejercicio) y MOTOR (cámara, detección,
+    métricas, dibujo e interfaz). Para agregar un ejercicio se suma una entrada en
+    RANGOS y otra en EJERCICIOS, sin tocar el motor.
+  - Color por zona del cuerpo: cada evaluación indica qué zona falla (espalda, caderas,
+    rodillas, codos). El esqueleto pinta grueso solo ese tramo; en caderas aparece una
+    flecha (sube/baja) y, en plancha y flexiones, una línea de referencia punteada.
+  - Pantalla grande: todo el fondo toma el color del semáforo, con mensaje y contador
+    enormes y un símbolo (✓ ! ✕ 💧) para no depender solo del color. Mantiene la
+    pantalla encendida si el navegador lo permite.
+  - Sonidos cortos opcionales por color (apagados por defecto). No hay voz.
+  - Aviso si el ejemplo calibrado queda fuera de los rangos recomendados (modelo híbrido).
+  - Los límites de seguridad (rojo) se aplican también durante el ejemplo.
+  - Sentadilla: se quitaron los campos de peso (los ejercicios son de peso corporal) y
+    ahora usa meta, aviso de parar y el paso explícito "Hacer ejemplo", igual que el resto.
+  - "Recalibrar" pasa a llamarse "Repetir ejemplo" y reinicia los contadores de la serie.
+
+  Todos los números de RANGOS son valores iniciales SIN VALIDAR.
+-->
+<style>
+:root{--bg:#e8edf0;--card:#fff;--tx:#14202a;--mu:#506070;--ln:#cdd6dc;--ac:#14202a;--estado:#6b7280;--estado-tx:#fff;
+  --f:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#121a21;--card:#1b252e;--tx:#e8eef3;--mu:#9aa9b6;--ln:#2c3944;--ac:#e8eef3}}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;padding-top:max(16px,env(safe-area-inset-top));background:var(--bg);color:var(--tx);font:17px/1.5 var(--f)}
+main{max-width:720px;margin:auto}
+h1{font-size:1.6rem;line-height:1.2;margin:0}h2{font-size:1.1rem;margin:.8em 0 .3em}
+.top{display:flex;gap:14px;align-items:center;margin:4px 0 6px}
+.signal{display:flex;flex-direction:column;gap:4px;padding:6px;border-radius:14px;background:var(--tx);flex:none}
+.signal i{width:14px;height:14px;border-radius:50%;display:block}
+.signal i:nth-child(1){background:#ef4444}.signal i:nth-child(2){background:#eab308}.signal i:nth-child(3){background:#22c55e}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:16px;margin:14px 0}
+.mu{color:var(--mu);font-size:.92rem}
+label{display:block;margin:10px 0 2px}
+label.check{display:flex;gap:8px;align-items:center}
+input[type=number]{width:120px;padding:9px;border:1px solid var(--ln);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+input[type=checkbox]{width:20px;height:20px}
+button{padding:11px 16px;border:0;border-radius:8px;background:var(--ac);color:var(--bg);font:inherit;font-weight:700;cursor:pointer;margin:4px 6px 4px 0}
+button.s{background:transparent;color:var(--tx);border:1px solid var(--ln);font-weight:400}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #3b82f6;outline-offset:2px}
+.warn{border-left:4px solid #eab308;padding:8px 12px;margin:10px 0;background:var(--bg);border-radius:4px;font-size:.95rem}
+#grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px}
+.ex{display:flex;flex-direction:column;align-items:center;gap:4px;margin:0;padding:12px 8px;background:var(--bg);color:var(--tx);border:1px solid var(--ln);text-align:center;font-weight:400}
+.ex svg{width:100%;max-width:130px;height:auto}
+.ex b{font-size:1rem}.ex span{font-size:.82rem;color:var(--mu)}
+.ex:not(:disabled):hover{border-color:var(--tx)}
+#meta,#etapa,#resumen,#salirGrande,#avisoRef{display:none}
+.paso{font-weight:700;margin:0}
+#vw{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:4/3}
+canvas{width:100%;height:100%;display:block;transform:scaleX(-1)}
+#bar{display:flex;align-items:center;gap:14px;margin-top:12px}
+#light{width:64px;height:64px;border-radius:50%;background:var(--estado);color:var(--estado-tx);flex:none;transition:background .2s;border:3px solid var(--ln);display:grid;place-items:center}
+#sym{font-size:1.7rem;font-weight:700;line-height:1}
+#msg{font-size:1.2rem;font-weight:700}
+.n{display:flex;gap:24px;margin-top:8px}.n b{font-size:1.6rem}
+.ctrl{margin-top:10px}
+
+/* ---------- Panel al lado de la cámara ---------- */
+body.sesion main{max-width:1180px}
+#zona{display:grid;gap:4px 20px}
+@media (min-width:760px),(orientation:landscape) and (min-width:560px){
+  #zona{grid-template-columns:minmax(0,1.7fr) minmax(230px,1fr);align-items:start}
+  #panel{position:sticky;top:12px}
+  #panel #bar{margin-top:0}
+  #panel .ctrl button{display:block;width:100%;margin:0 0 8px}
+  #panel .ctrl #salirGrande{display:none}
+}
+
+/* ---------- Modo pantalla grande: la cámara ocupa todo ---------- */
+body.grande{overflow:hidden}
+body.grande #etapa{position:fixed;inset:0;z-index:10;background:#000;color:#fff;padding:0}
+body.grande #stp,body.grande #tip,body.grande #avisoRef{display:none!important}
+body.grande #zona{display:block;height:100%}
+body.grande #vw{position:absolute;inset:0;border-radius:0;aspect-ratio:auto}
+body.grande canvas{object-fit:contain}
+/* Marco de color: el estado se ve en el borde sin tapar a la persona */
+body.grande #vw::after{content:"";position:absolute;inset:0;pointer-events:none;
+  box-shadow:inset 0 0 0 clamp(14px,3.5vmin,34px) var(--estado);transition:box-shadow .25s}
+body.grande #panel{position:absolute;top:auto;left:clamp(14px,3.5vmin,34px);right:clamp(14px,3.5vmin,34px);bottom:clamp(14px,3.5vmin,34px);
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:24px 12px calc(10px + env(safe-area-inset-bottom));
+  background:linear-gradient(transparent,rgba(0,0,0,.65))}
+body.grande #panel #bar{margin:0;flex:1 1 240px;gap:10px}
+body.grande #light{width:46px;height:46px;border:2px solid #fff}
+body.grande #sym{font-size:1.3rem}
+body.grande #msg{font-size:clamp(1rem,2.6vw,1.4rem);text-shadow:0 1px 3px #000}
+body.grande .n{margin:0;gap:18px;text-shadow:0 1px 3px #000}
+body.grande .n b{font-size:1.4rem}
+body.grande .n .mu{color:#fff;opacity:.85;font-size:.8rem}
+/* Botones arriba a la derecha, para no tapar el cuerpo */
+body.grande #panel .ctrl{margin:0;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;position:fixed;
+  top:calc(clamp(14px,3.5vmin,34px) + 10px + env(safe-area-inset-top));right:calc(clamp(14px,3.5vmin,34px) + 10px);max-width:70vw}
+body.grande #panel .ctrl button{display:inline-block;width:auto;margin:0;padding:8px 12px;font-size:.92rem;background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.6)}
+body.grande #grande,body.grande #sonido,body.grande #rc{display:none!important}
+body.grande #panel .ctrl #salirGrande{display:inline-block}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body><main>
+
+<header class="top">
+  <div class="signal" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div><h1>Semáforo de ejercicios</h1>
+  <p class="mu" style="margin:0">Prototipo v3.1. Verde: bien. Amarillo: corrige. Rojo: para. Azul: hidrátate. Gris: esperando.</p></div>
+</header>
+
+<section id="inicio" class="card">
+  <div class="warn">Esta app es una guía orientativa y no reemplaza a un profesional. Si sientes dolor, detente.</div>
+  <label class="check"><input id="ok" type="checkbox"> Entiendo el aviso</label>
+  <h2>Elige un ejercicio</h2>
+  <div id="grid"></div>
+  <label for="hm">Recordar hidratación cada (minutos)</label><input id="hm" type="number" min="1" value="15">
+</section>
+
+<section id="meta" class="card">
+  <h2 id="gt"></h2>
+  <label for="gv" id="gl"></label><input id="gv" type="number" min="1">
+  <label for="gu" id="gul"></label><input id="gu" type="number" min="0">
+  <div class="warn" id="gw" style="display:none">Tu meta es mayor a lo que haces normalmente. La app será más estricta y puede pedirte que pares antes si pierdes la forma.</div>
+  <p class="mu">La app te avisará cuando llegues a tu meta, o antes si tu forma se deteriora.</p>
+  <button id="gc">Continuar</button><button id="gb" class="s">Cambiar ejercicio</button>
+  <p id="err" class="mu" role="alert"></p>
+</section>
+
+<section id="etapa">
+  <p id="stp" class="paso"></p>
+  <p id="tip" class="mu"></p>
+  <div id="avisoRef" class="warn"></div>
+  <div id="zona">
+  <div id="vw"><canvas id="cv"></canvas></div>
+  <div id="panel">
+  <div id="bar" aria-live="polite"><div id="light"><span id="sym">…</span></div><div id="msg">Cargando…</div></div>
+  <div class="n"><div><b id="n1">0</b><br><span id="l1" class="mu"></span></div><div><b id="n2">0</b><br><span id="l2" class="mu"></span></div></div>
+  <div class="ctrl">
+    <button id="cal" style="display:none">Hacer ejemplo</button>
+    <button id="hyd" style="display:none">Ya me hidraté</button>
+    <button id="grande" class="s">Pantalla grande</button>
+    <button id="sonido" class="s" aria-pressed="false">Activar sonidos</button>
+    <button id="rc" class="s">Repetir ejemplo</button>
+    <button id="salirGrande">Salir de pantalla grande</button>
+    <button id="fin">Terminar sesión</button>
+  </div>
+  </div>
+  </div>
+</section>
+
+<section id="resumen" class="card"></section>
+<video id="vd" playsinline muted style="display:none"></video>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script>
+'use strict';
+
+/* =====================================================================
+   1) RANGOS: valores iniciales SIN VALIDAR.
+   Este es el bloque que debe revisar un profesional. Cambiar estos
+   números no requiere tocar el resto del código.
+   Ángulos en grados. "dev" = desviación de la cadera respecto a la línea
+   hombro-tobillo, en proporción al largo del cuerpo (positivo = cadera baja).
+   ===================================================================== */
+const RANGOS={
+  general:{visibilidadMin:.45, suavizado:.5, cuentaRegresiva:3, capturaSeg:4, muestrasMin:20},
+  paradas:{margenEstricto:1.2, repsMalas:3, repsMalasEstricta:2, segSinForma:5, segSinFormaEstricta:3},
+  sentadilla:{dePieMin:.6, bajadaEjemplo:125, bajadaMax:130, bajadaMargen:25, subida:160, profundidadMargen:15,
+    espaldaMargen:12, espaldaMax:45, espaldaRojo:55,
+    ejemplo:{profundidadMax:125, espaldaMax:45}},
+  iso:{rodillaFuera:135, espaldaRojo:55, espaldaMargen:12, espaldaMax:40, rodillaMargen:12,
+    ejemplo:{espaldaMax:40, rodillaMin:60}},
+  plancha:{horizMax:.45, amarillo:.05, rojo:.10, rojoAbs:.18,
+    ejemplo:{devAbsMax:.08}},
+  flexiones:{horizMax:.55, amarillo:.06, rojo:.12, rojoAbs:.18, bajadaMax:115, bajadaMargen:25, subida:155,
+    profundidadMargen:15, lineaRep:.07,
+    ejemplo:{codoMax:115, devAbsMax:.08}}
+};
+
+/* =====================================================================
+   2) EJERCICIOS: qué mide cada uno y cómo se evalúa.
+   Cada evaluación devuelve: c (color), m (mensaje), zonas ({espalda:'y'}…),
+   dir ('sube'/'baja', para la flecha) y prob (nombre del error para el resumen).
+   ===================================================================== */
+const prom=(a,k)=>a.reduce((s,x)=>s+x[k],0)/a.length;
+
+// Línea del cuerpo (plancha y flexiones)
+function evalLinea(M,ref,R,nombre){
+  if(M.horiz>=R.horizMax)return{pos:false,c:'n',m:'Ponte de lado en posición de '+nombre};
+  const res=(c,baja)=>({pos:true,c,zonas:{caderas:c},dir:baja?'sube':'baja',prob:baja?'caderas bajas':'caderas altas',
+    m:c==='r'?(baja?'¡Para! Caderas muy bajas':'¡Para! Caderas muy altas'):(baja?'Sube las caderas':'Baja las caderas')});
+  // Límite de seguridad: no depende del ejemplo
+  if(Math.abs(M.dev)>R.rojoAbs)return res('r',M.dev>0);
+  if(!ref)return{pos:true,c:'n',m:'Mantén tu mejor forma'};
+  const rel=M.dev-ref.dev;
+  if(Math.abs(rel)>R.rojo)return res('r',rel>0);
+  if(Math.abs(rel)>R.amarillo)return res('y',rel>0);
+  return{pos:true,c:'g',m:'Buena línea del cuerpo',zonas:{caderas:'g'}};
+}
+
+const EJERCICIOS={
+  sentadilla:{
+    nombre:'Sentadilla',tipo:'reps',linea:false,puntos:['sh','hp','kn','an'],metaDef:10,
+    ejemplo:'3 sentadillas',etiquetas:['repeticiones','buenas'],
+    camara:'Cámara de lado, a la altura de la cadera y a 2 o 3 metros, con el cuerpo completo a la vista.',
+    dibujo:'<circle cx="50" cy="12" r="7"/><path d="M48 22L40 42H64V66M46 28L74 30M8 68H112"/>',
+    medida:'knee',
+    enPosicion:(M,R)=>M.horiz>R.dePieMin,
+    msgFuera:'Ponte de pie, de lado a la cámara',
+    bajada:(ref,R)=>ref?Math.min(R.bajadaMax,ref.depth+R.bajadaMargen):R.bajadaEjemplo,
+    subida:R=>R.subida,
+    limEspalda:(ref,R)=>ref?Math.min(ref.lean+R.espaldaMargen,R.espaldaMax):R.espaldaMax,
+    durante(M,ref,R){
+      if(M.lean>R.espaldaRojo)return{c:'r',m:'¡Para! Espalda muy inclinada',zonas:{espalda:'r'}};
+      if(M.lean>this.limEspalda(ref,R))return{c:'y',m:'Endereza la espalda',zonas:{espalda:'y'}};
+      return{c:ref?'g':'n',m:'Bien, sigue así',zonas:{}};
+    },
+    ref:reps=>({depth:prom(reps,'min'),lean:prom(reps,'maxLean')}),
+    juzgar(q,ref,R){
+      const p=[];
+      if(q.maxLean>R.espaldaRojo)p.push({z:'espalda',c:'r',m:'Espalda muy inclinada',k:'espalda muy inclinada'});
+      else if(q.maxLean>this.limEspalda(ref,R))p.push({z:'espalda',c:'y',m:'Endereza la espalda',k:'espalda inclinada'});
+      if(q.min>ref.depth+R.profundidadMargen)p.push({z:'rodillas',c:'y',m:'Baja un poco más',k:'poca profundidad',dir:'baja'});
+      return p;
+    },
+    validar(ref,R){const a=[];
+      if(ref.depth>R.ejemplo.profundidadMax)a.push('bajaste poco');
+      if(ref.lean>R.ejemplo.espaldaMax)a.push('la espalda se inclinó mucho');return a}
+  },
+
+  iso:{
+    nombre:'Sentadilla isométrica',tipo:'mantener',linea:false,puntos:['sh','hp','kn','an'],metaDef:30,
+    ejemplo:'4 segundos en tu posición',etiquetas:['tiempo en buena forma','tiempo total en posición'],
+    camara:'Cámara de lado, a la altura de la cadera, con el cuerpo completo a la vista. Apoya la espalda en la pared y baja hasta tu posición.',
+    dibujo:'<path d="M26 6V66" stroke-width="6" opacity=".4"/><circle cx="42" cy="14" r="7"/><path d="M38 24V46H70V66M8 68H112"/>',
+    evaluar(M,ref,R){
+      if(M.knee>R.rodillaFuera)return{pos:false,c:'n',m:'Baja hasta tu posición'};
+      if(M.lean>R.espaldaRojo)return{pos:true,c:'r',m:'¡Para! Espalda muy inclinada',zonas:{espalda:'r'},prob:'espalda inclinada'};
+      if(!ref)return{pos:true,c:'n',m:'Mantén tu mejor forma'};
+      if(M.lean>Math.min(ref.lean+R.espaldaMargen,R.espaldaMax))return{pos:true,c:'y',m:'Endereza la espalda',zonas:{espalda:'y'},prob:'espalda inclinada'};
+      if(M.knee<ref.knee-R.rodillaMargen)return{pos:true,c:'y',m:'Sube un poco, vuelve a tu ángulo',zonas:{rodillas:'y'},dir:'sube',prob:'ángulo de rodilla'};
+      if(M.knee>ref.knee+R.rodillaMargen)return{pos:true,c:'y',m:'Baja un poco, vuelve a tu ángulo',zonas:{rodillas:'y'},dir:'baja',prob:'ángulo de rodilla'};
+      return{pos:true,c:'g',m:'Bien, mantén la posición',zonas:{}};
+    },
+    muestra:M=>({knee:M.knee,lean:M.lean}),
+    ref:s=>({knee:prom(s,'knee'),lean:prom(s,'lean')}),
+    validar(ref,R){const a=[];
+      if(ref.lean>R.ejemplo.espaldaMax)a.push('la espalda se inclinó mucho');
+      if(ref.knee<R.ejemplo.rodillaMin)a.push('bajaste demasiado');return a}
+  },
+
+  plancha:{
+    nombre:'Plancha',tipo:'mantener',linea:true,puntos:['sh','hp','an'],metaDef:30,
+    ejemplo:'4 segundos en plancha',etiquetas:['tiempo en buena forma','tiempo total en plancha'],
+    camara:'Cámara de lado, a ras del suelo, con el cuerpo completo a la vista. Ponte en plancha con los antebrazos apoyados.',
+    dibujo:'<circle cx="14" cy="36" r="7"/><path d="M22 44L62 48L106 56M30 45V60H12M106 56V62M8 64H112"/>',
+    evaluar:(M,ref,R)=>evalLinea(M,ref,R,'plancha'),
+    muestra:M=>({dev:M.dev}),
+    ref:s=>({dev:prom(s,'dev')}),
+    validar(ref,R){return Math.abs(ref.dev)>R.ejemplo.devAbsMax?['las caderas no quedaron en línea']:[]}
+  },
+
+  flexiones:{
+    nombre:'Flexiones',tipo:'reps',linea:true,puntos:['sh','el','wr','hp','an'],metaDef:10,
+    ejemplo:'3 flexiones',etiquetas:['repeticiones','buenas'],
+    camara:'Cámara de lado, a ras del suelo, con el cuerpo completo a la vista.',
+    dibujo:'<circle cx="14" cy="28" r="7"/><path d="M22 36L64 46L106 56M32 38V60M106 56V62M8 64H112"/>',
+    medida:'elb',
+    enPosicion:(M,R)=>M.horiz<R.horizMax,
+    msgFuera:'Ponte de lado en posición de flexión',
+    bajada:(ref,R)=>ref?Math.min(R.bajadaMax,ref.elb+R.bajadaMargen):R.bajadaMax,
+    subida:R=>R.subida,
+    durante:(M,ref,R)=>evalLinea(M,ref,R,'flexión'),
+    ref:reps=>({elb:prom(reps,'min'),dev:prom(reps,'devProm')}),
+    juzgar(q,ref,R){
+      const p=[],baja=q.devProm-ref.dev>0;
+      if(q.maxDevAbs>R.rojoAbs)p.push({z:'caderas',c:'r',m:baja?'Caderas muy bajas':'Caderas muy altas',k:baja?'caderas bajas':'caderas altas',dir:baja?'sube':'baja'});
+      else if(q.maxDevRel>R.lineaRep)p.push({z:'caderas',c:'y',m:baja?'Sube las caderas':'Baja las caderas',k:baja?'caderas bajas':'caderas altas',dir:baja?'sube':'baja'});
+      if(q.min>ref.elb+R.profundidadMargen)p.push({z:'codos',c:'y',m:'Baja más el pecho',k:'poca profundidad'});
+      return p;
+    },
+    validar(ref,R){const a=[];
+      if(ref.elb>R.ejemplo.codoMax)a.push('bajaste poco');
+      if(Math.abs(ref.dev)>R.ejemplo.devAbsMax)a.push('las caderas no quedaron en línea');return a}
+  }
+};
+
+/* =====================================================================
+   3) MOTOR: cámara, detección, métricas, dibujo e interfaz.
+   No debería ser necesario tocarlo para agregar ejercicios.
+   ===================================================================== */
+const $=id=>document.getElementById(id);
+const C={n:'#6b7280',g:'#22c55e',y:'#eab308',r:'#ef4444',b:'#3b82f6'};
+const SIM={n:'…',g:'✓',y:'!',r:'✕',b:'💧'};
+const IDX={izq:[11,13,15,23,25,27],der:[12,14,16,24,26,28]},K=['sh','el','wr','hp','kn','an'];
+// Tramos del esqueleto y la zona a la que pertenece cada uno
+const TRAMOS=[['wr','el','codos'],['el','sh','codos'],['sh','hp','espalda'],['hp','kn','caderas'],['kn','an','rodillas']];
+const ARTIC={el:'codos',hp:'caderas',kn:'rodillas'};
+const cv=$('cv'),ctx=cv.getContext('2d'),vd=$('vd');
+const fmt=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const ver=(id,on)=>{$(id).style.display=on?'':'none'};
+function ang(a,b,c){const u=[a.x-b.x,a.y-b.y],v=[c.x-b.x,c.y-b.y],m=Math.hypot(...u)*Math.hypot(...v);
+  if(!m)return 180;return Math.acos(Math.max(-1,Math.min(1,(u[0]*v[0]+u[1]*v[1])/m)))*180/Math.PI}
+
+let S=null,pose=null,stream=null,corriendo=false,elegido=null;
+
+function nuevaSesion(id,meta,habitual){
+  S={id,E:EJERCICIOS[id],R:RANGOS[id],meta,habitual,
+    estricta:habitual>0&&meta>habitual*RANGOS.paradas.margenEstricto,
+    fase:'ejemplo',ref:null,cd:null,muestras:[],ejemploReps:[],baja:false,rep:null,
+    reps:0,buenas:0,rachaMala:0,tiempoMalo:0,tBuena:0,tPos:0,errores:{},
+    terminando:false,motivo:'',hastaT:0,cur:'',zonas:{},dir:null,
+    M:{knee:170,elb:170,lean:0,dev:0,horiz:1},ultimoT:performance.now(),hidratar:false,ultimaHid:Date.now()};
+}
+
+// Cambia el semáforo: color, símbolo, mensaje y zonas a pintar
+function estado(c,m,zonas={},dir=null){
+  if(c!==S.cur){
+    S.cur=c;$('sym').textContent=SIM[c];
+    document.documentElement.style.setProperty('--estado',C[c]);
+    document.documentElement.style.setProperty('--estado-tx',c==='y'?'#14202a':'#fff');
+    sonar(c);
+  }
+  S.zonas=zonas;S.dir=dir;
+  if($('msg').textContent!==m)$('msg').textContent=m;
+}
+
+function contadores(){
+  if(S.E.tipo==='mantener'){$('n1').textContent=fmt(S.tBuena);$('n2').textContent=fmt(S.tPos)+' / '+fmt(S.meta)}
+  else{$('n1').textContent=S.reps+' / '+S.meta;$('n2').textContent=S.buenas}
+}
+
+function setPaso(n){
+  $('stp').textContent=n===1
+    ?'Paso 1 de 2: haz tu ejemplo con la mejor técnica ('+S.E.ejemplo+'). Con él la app aprende tu forma correcta.'
+    :'Paso 2 de 2: tu serie. Meta: '+(S.E.tipo==='mantener'?S.meta+' segundos':S.meta+' repeticiones')+'.';
+}
+
+function metricas(p){
+  const a=RANGOS.general.suavizado,ema=(v,n)=>a*v+(1-a)*n,M=S.M;
+  const len=dist(p.sh,p.an)||1,yl=p.sh.y+(p.an.y-p.sh.y)*((p.hp.x-p.sh.x)/((p.an.x-p.sh.x)||1e-6));
+  M.knee=ema(M.knee,ang(p.hp,p.kn,p.an));
+  M.elb=ema(M.elb,ang(p.sh,p.el,p.wr));
+  M.lean=ema(M.lean,Math.atan2(Math.abs(p.sh.x-p.hp.x),p.hp.y-p.sh.y)*180/Math.PI);
+  M.dev=ema(M.dev,(p.hp.y-yl)/len);
+  M.horiz=Math.abs(p.sh.y-p.an.y)/len;
+}
+
+function guardarRef(ref,now){
+  S.ref=ref;S.fase='serie';S.tBuena=S.tPos=S.tiempoMalo=0;S.reps=S.buenas=S.rachaMala=0;S.errores={};S.baja=false;
+  const fuera=S.E.validar(ref,S.R);
+  if(fuera.length){
+    $('avisoRef').textContent='Tu ejemplo quedó fuera del rango recomendado: '+fuera.join(' y ')+'. Si puedes, pulsa "Repetir ejemplo". Los límites de seguridad siguen activos.';
+    $('avisoRef').style.display='block';
+  }
+  setPaso(2);contadores();
+  estado('g','Ejemplo guardado. ¡Empieza tu serie!');S.hastaT=now+1500;
+}
+
+// Ejercicios de mantener
+function pasoMantener(dt,now){
+  const G=RANGOS.general,P=RANGOS.paradas,r=S.E.evaluar(S.M,S.ref,S.R);
+  if(S.fase==='ejemplo'){
+    if(r.c==='r'){estado('r',r.m,r.zonas,r.dir);return} // seguridad, aun sin ejemplo
+    if(S.cd===null){estado('n','Ponte en posición y pulsa "Hacer ejemplo"');return}
+    const el=(now-S.cd)/1000,cr=G.cuentaRegresiva,fin=cr+G.capturaSeg;
+    if(el<cr){estado('n','Prepárate… '+Math.ceil(cr-el));return}
+    if(el<fin){estado('n','Ejemplo: mantén tu mejor forma… '+Math.ceil(fin-el));if(r.pos)S.muestras.push(S.E.muestra(S.M));return}
+    S.cd=null;
+    if(S.muestras.length<G.muestrasMin){estado('n','No te vi bien. Pulsa "Hacer ejemplo" y repite');ver('cal',true);return}
+    guardarRef(S.E.ref(S.muestras),now);return;
+  }
+  if(now<S.hastaT)return;
+  estado(r.c,r.m,r.zonas,r.dir);
+  if(r.pos){
+    S.tPos+=dt;
+    if(r.c==='g'){S.tBuena+=dt;S.tiempoMalo=0}
+    else{S.tiempoMalo+=dt;if(r.prob)S.errores[r.prob]=(S.errores[r.prob]||0)+dt}
+  }
+  contadores();
+  if(S.tPos>=S.meta)parar('g','¡Meta cumplida! Puedes parar','Meta cumplida');
+  else if(S.tiempoMalo>(S.estricta?P.segSinFormaEstricta:P.segSinForma))parar('r','Para: perdiste la forma','Se detuvo por pérdida de forma');
+}
+
+// Ejercicios de repeticiones
+function pasoReps(now){
+  const E=S.E,R=S.R,M=S.M,G=RANGOS.general,pos=E.enPosicion(M,R);
+  if(S.fase==='ejemplo'){
+    if(S.cd===null){estado('n','Ponte en posición y pulsa "Hacer ejemplo"');return}
+    const el=(now-S.cd)/1000;
+    if(el<G.cuentaRegresiva){estado('n','Prepárate… '+Math.ceil(G.cuentaRegresiva-el));return}
+  }
+  const v=M[E.medida];
+  if(pos){
+    if(!S.baja&&v<E.bajada(S.ref,R)){
+      S.baja=true;S.rep={min:v,sumDev:M.dev,n:1,maxDevRel:0,maxDevAbs:Math.abs(M.dev),maxLean:M.lean};
+    }else if(S.baja){
+      const q=S.rep;q.min=Math.min(q.min,v);q.sumDev+=M.dev;q.n++;q.maxLean=Math.max(q.maxLean,M.lean);
+      q.maxDevAbs=Math.max(q.maxDevAbs,Math.abs(M.dev));
+      if(S.ref&&S.ref.dev!==undefined)q.maxDevRel=Math.max(q.maxDevRel,Math.abs(M.dev-S.ref.dev));
+      if(v>E.subida(R)){S.baja=false;finRep(now)}
+    }
+  }
+  if(now<S.hastaT)return;
+  if(!pos){estado('n',E.msgFuera);return}
+  const r=S.baja?E.durante(M,S.fase==='serie'?S.ref:null,R):null;
+  if(S.fase==='ejemplo'){
+    if(r&&r.c==='r')estado('r',r.m,r.zonas,r.dir); // seguridad, aun sin ejemplo
+    else estado('n','Ejemplo: haz '+E.ejemplo+' con tu mejor forma ('+S.ejemploReps.length+'/3)');
+  }
+  else if(r)estado(r.c,r.m,r.zonas,r.dir);
+  else estado('g','Listo para la siguiente');
+}
+
+function finRep(now){
+  const q=S.rep,P=RANGOS.paradas;q.devProm=q.sumDev/q.n;
+  if(S.fase==='ejemplo'){
+    S.ejemploReps.push(q);
+    if(S.ejemploReps.length>=3){guardarRef(S.E.ref(S.ejemploReps),now);S.hastaT=now+1800}
+    else{estado('n','Ejemplo: '+S.ejemploReps.length+'/3');S.hastaT=now+1200}
+    return;
+  }
+  S.reps++;
+  const p=S.E.juzgar(q,S.ref,S.R);
+  p.forEach(x=>S.errores[x.k]=(S.errores[x.k]||0)+1);
+  S.rachaMala=p.length?S.rachaMala+1:0;
+  if(!p.length){S.buenas++;estado('g','Buena repetición')}
+  else{const z={};p.forEach(x=>z[x.z]=x.c);const peor=p.find(x=>x.c==='r')||p[0];estado(peor.c,peor.m,z,peor.dir)}
+  S.hastaT=now+2200;contadores();
+  if(S.reps>=S.meta)parar('g','¡Meta cumplida! Puedes parar','Meta cumplida');
+  else if(S.rachaMala>=(S.estricta?P.repsMalasEstricta:P.repsMalas))parar('r','Para: tu forma se deterioró','Se detuvo por pérdida de forma');
+}
+
+// Dibuja el esqueleto: tramo con problema grueso y en su color; el resto, en verde o gris
+function dibujar(p){
+  const W=cv.width,s=W/640,base=(S.cur==='y'||S.cur==='r')?'g':S.cur;
+  const col=z=>S.zonas[z]||base,mal=z=>S.zonas[z]==='y'||S.zonas[z]==='r';
+  ctx.lineCap='round';
+  // Línea de referencia hombro-tobillo (plancha y flexiones) cuando las caderas fallan
+  if(S.E.linea&&mal('caderas')&&p.sh.v>.3&&p.an.v>.3){
+    ctx.save();ctx.setLineDash([12*s,10*s]);ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=3*s;
+    ctx.beginPath();ctx.moveTo(p.sh.x,p.sh.y);ctx.lineTo(p.an.x,p.an.y);ctx.stroke();ctx.restore();
+  }
+  TRAMOS.forEach(([a,b,z])=>{
+    if(p[a].v<=.3||p[b].v<=.3)return;
+    const grueso=mal(z);
+    if(grueso){ctx.strokeStyle='rgba(0,0,0,.55)';ctx.lineWidth=18*s;ctx.beginPath();ctx.moveTo(p[a].x,p[a].y);ctx.lineTo(p[b].x,p[b].y);ctx.stroke()}
+    ctx.strokeStyle=C[col(z)];ctx.lineWidth=(grueso?12:6)*s;
+    ctx.beginPath();ctx.moveTo(p[a].x,p[a].y);ctx.lineTo(p[b].x,p[b].y);ctx.stroke();
+  });
+  K.forEach(k=>{
+    if(p[k].v<=.3)return;const z=ARTIC[k],grueso=z&&mal(z);
+    ctx.fillStyle=C[z?col(z):base];ctx.beginPath();ctx.arc(p[k].x,p[k].y,(grueso?13:7)*s,0,7);ctx.fill();
+    if(grueso){ctx.strokeStyle='#fff';ctx.lineWidth=3*s;ctx.stroke()}
+  });
+  // Flecha en la cadera: hacia dónde corregir
+  if(S.dir&&(S.cur==='y'||S.cur==='r')&&p.hp.v>.3){
+    const x=p.hp.x+40*s,y=p.hp.y,d=S.dir==='sube'?-1:1,L=45*s;
+    ctx.strokeStyle=ctx.fillStyle=C[S.cur];ctx.lineWidth=7*s;
+    ctx.beginPath();ctx.moveTo(x,y-d*L/2);ctx.lineTo(x,y+d*L/2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,y+d*(L/2+14*s));ctx.lineTo(x-13*s,y+d*(L/2-4*s));ctx.lineTo(x+13*s,y+d*(L/2-4*s));ctx.closePath();ctx.fill();
+  }
+}
+
+function onResults(res){
+  if(!S||S.fase==='fin')return;
+  const W=cv.width,H=cv.height;ctx.drawImage(res.image,0,0,W,H);
+  const now=performance.now(),dt=Math.min(.25,(now-S.ultimoT)/1000);S.ultimoT=now;
+  const Lm=res.poseLandmarks;
+  if(!Lm){if(!S.terminando)estado('n','No te veo. Ponte de lado, con el cuerpo completo a la vista');return}
+  const lado=ix=>{const p={};K.forEach((k,i)=>{const l=Lm[ix[i]];p[k]={x:l.x*W,y:l.y*H,v:l.visibility||0}});return p};
+  const vis=p=>S.E.puntos.reduce((a,k)=>a+p[k].v,0)/S.E.puntos.length;
+  const A=lado(IDX.izq),B=lado(IDX.der),p=vis(A)>=vis(B)?A:B;
+  if(vis(p)<RANGOS.general.visibilidadMin){
+    if(!S.terminando)estado('n','No te veo bien. Aléjate o mejora la luz; cuerpo completo y de lado');return}
+  metricas(p);
+  if(!S.terminando){
+    if(S.hidratar)estado('b','Hora de hidratarse');
+    else if(S.E.tipo==='mantener')pasoMantener(dt,now);
+    else pasoReps(now);
+  }
+  dibujar(p);
+}
+
+async function loop(){if(!corriendo)return;try{await pose.send({image:vd})}catch(e){}requestAnimationFrame(loop)}
+
+/* ---------- Sonidos opcionales (no son voz) ---------- */
+let actx=null,sonidoOn=false,ultSon=0;
+const TONOS={g:[[880,.09],[1320,.13]],y:[[620,.18]],r:[[300,.14],[0,.06],[300,.14]],b:[[700,.1],[940,.1],[1250,.14]]};
+function sonar(c,forzar){
+  if(!sonidoOn||!actx||!TONOS[c])return;
+  if(!forzar&&!(S&&(S.fase==='serie'||c==='r'||c==='b')))return;
+  const ahora=performance.now();if(!forzar&&ahora-ultSon<500)return;ultSon=ahora;
+  let t=actx.currentTime;
+  TONOS[c].forEach(([f,d])=>{
+    if(f){const o=actx.createOscillator(),g=actx.createGain();o.type=c==='r'?'square':'sine';o.frequency.value=f;
+      g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.22,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+      o.connect(g).connect(actx.destination);o.start(t);o.stop(t+d+.02)}
+    t+=d;
+  });
+}
+$('sonido').onclick=()=>{
+  if(!actx){const AC=window.AudioContext||window.webkitAudioContext;if(AC)actx=new AC()}
+  if(actx&&actx.state==='suspended')actx.resume();
+  sonidoOn=!sonidoOn;
+  $('sonido').textContent=sonidoOn?'Silenciar sonidos':'Activar sonidos';
+  $('sonido').setAttribute('aria-pressed',sonidoOn);
+  if(sonidoOn)sonar('g',true);
+};
+
+/* ---------- Pantalla grande y pantalla encendida ---------- */
+let wl=null;
+async function mantenerPantalla(){try{if('wakeLock' in navigator)wl=await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S&&S.fase!=='fin'&&corriendo)mantenerPantalla()});
+function pantallaGrande(on){
+  document.body.classList.toggle('grande',on);
+  if(on){const r=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();if(r&&r.catch)r.catch(()=>{})}
+  else if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+}
+$('grande').onclick=()=>pantallaGrande(true);
+$('salirGrande').onclick=()=>pantallaGrande(false);
+
+/* ---------- Flujo de pantallas ---------- */
+const svg=d=>'<svg viewBox="0 0 120 72" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
+$('grid').innerHTML=Object.entries(EJERCICIOS).map(([id,e])=>
+  '<button class="ex" data-id="'+id+'" disabled>'+svg(e.dibujo)+'<b>'+e.nombre+'</b><span>De lado, '+(e.tipo==='mantener'?'mantener':'repeticiones')+'</span></button>').join('');
+
+$('ok').onchange=e=>document.querySelectorAll('.ex').forEach(b=>b.disabled=!e.target.checked);
+document.querySelectorAll('.ex').forEach(b=>b.onclick=()=>{
+  elegido=b.dataset.id;const e=EJERCICIOS[elegido],m=e.tipo==='mantener';
+  $('inicio').style.display='none';$('meta').style.display='block';$('gt').textContent=e.nombre;
+  $('gl').textContent=m?'¿Cuántos segundos quieres mantenerlo hoy?':'¿Cuántas repeticiones quieres hacer hoy?';
+  $('gul').textContent=m?'Segundos que mantienes normalmente (opcional)':'Repeticiones que haces normalmente (opcional)';
+  $('gv').value=e.metaDef;$('gu').value='';revisarMeta();
+});
+function revisarMeta(){const g=parseFloat($('gv').value),u=parseFloat($('gu').value);
+  $('gw').style.display=(u>0&&g>u*RANGOS.paradas.margenEstricto)?'block':'none'}
+$('gv').oninput=$('gu').oninput=revisarMeta;
+$('gb').onclick=()=>{$('meta').style.display='none';$('inicio').style.display='block'};
+
+$('gc').onclick=async()=>{
+  const meta=Math.round(parseFloat($('gv').value)),habitual=parseFloat($('gu').value)||0;
+  if(!(meta>0)){$('err').textContent='Escribe una meta mayor que 0.';return}
+  if(typeof Pose==='undefined'){$('err').textContent='No se pudo cargar el detector de postura. Revisa tu conexión a internet y recarga la página.';return}
+  $('err').textContent='';
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480},audio:false});
+    vd.srcObject=stream;await vd.play();
+    cv.width=vd.videoWidth||640;cv.height=vd.videoHeight||480;
+  }catch(err){$('err').textContent='No se pudo iniciar la cámara: '+err.message+'. Revisa los permisos y abre la página con https.';return}
+  nuevaSesion(elegido,meta,habitual);
+  const e=S.E;
+  $('meta').style.display='none';$('etapa').style.display='block';document.body.classList.add('sesion');
+  $('tip').textContent=e.camara;$('l1').textContent=e.etiquetas[0];$('l2').textContent=e.etiquetas[1];
+  contadores();setPaso(1);ver('cal',true);
+  estado('n','Cargando el modelo…');
+  pose=new Pose({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/'+f});
+  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});
+  pose.onResults(onResults);
+  corriendo=true;loop();mantenerPantalla();
+};
+
+$('cal').onclick=()=>{S.muestras=[];S.ejemploReps=[];S.baja=false;S.cd=performance.now();ver('cal',false)};
+$('rc').onclick=()=>{
+  Object.assign(S,{ref:null,fase:'ejemplo',cd:null,muestras:[],ejemploReps:[],baja:false,
+    reps:0,buenas:0,rachaMala:0,tiempoMalo:0,tBuena:0,tPos:0,errores:{},hastaT:0});
+  $('avisoRef').style.display='none';setPaso(1);contadores();ver('cal',true);
+};
+$('hyd').onclick=()=>{S.hidratar=false;S.ultimaHid=Date.now();ver('hyd',false);S.ultimoT=performance.now()};
+setInterval(()=>{
+  if(!S||S.fase==='fin'||S.hidratar||S.terminando)return;
+  const min=parseFloat($('hm').value)||15;
+  if(Date.now()-S.ultimaHid>=min*60000){S.hidratar=true;ver('hyd',true)}
+},1000);
+
+$('fin').onclick=()=>{if(!S.motivo)S.motivo='Terminada por ti';terminar()};
+function parar(c,m,motivo){if(S.terminando)return;S.terminando=true;S.motivo=motivo;estado(c,m,S.zonas,null);setTimeout(terminar,2800)}
+
+function terminar(){
+  if(S.fase==='fin')return;S.fase='fin';
+  corriendo=false;if(stream)stream.getTracks().forEach(t=>t.stop());
+  if(wl){wl.release().catch(()=>{});wl=null}
+  pantallaGrande(false);document.body.classList.remove('sesion');
+  const e=S.E,m=e.tipo==='mantener';
+  const err=Object.entries(S.errores).sort((a,b)=>b[1]-a[1]);
+  const lista=err.length?err.map(([k,v])=>k+': '+(m?Math.round(v)+' s':v)).join(', '):'sin errores registrados';
+  const p=m?(S.tPos>0?S.tBuena/S.tPos:0):(S.reps?S.buenas/S.reps:0),hay=m?S.tPos>0:S.reps>0;
+  const c=!hay?'n':p>=.8?'g':'y';
+  const t=!hay?'No se registró actividad.':p>=.8?'Terminaste bien la sesión.':'Terminaste la sesión, con cosas por mejorar.';
+  const cuerpo=m
+    ?'Tiempo en buena forma: <b>'+fmt(S.tBuena)+'</b> de <b>'+fmt(S.tPos)+'</b> en posición'
+    :'Repeticiones: <b>'+S.reps+'</b>. Buenas: <b>'+S.buenas+'</b>';
+  $('etapa').style.display='none';$('resumen').style.display='block';
+  $('resumen').innerHTML='<h2>'+e.nombre+'</h2><p class="mu">Meta: '+(m?fmt(S.meta):S.meta+' repeticiones')+'. '+S.motivo+'.</p>'+
+    '<div style="display:flex;align-items:center;gap:14px"><div style="width:56px;height:56px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:1.5rem;background:'+C[c]+';color:'+(c==='y'?'#14202a':'#fff')+'">'+SIM[c]+'</div><b style="font-size:1.15rem">'+t+'</b></div>'+
+    '<p>'+cuerpo+'<br>Errores: <b>'+lista+'</b></p>'+
+    (err.length?'<p>Lo que más se repitió: <b>'+err[0][0]+'</b>.</p>':'')+
+    '<p class="mu">Esta app no reemplaza a un profesional. Si sentiste dolor, consulta a uno.</p><button onclick="location.reload()">Nueva sesión</button>';
+}
+</script></main></body></html>
