@@ -1,45 +1,40 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Semáforo de ejercicios (prototipo v3.1)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<title>Semáforo de ejercicios</title>
+<meta name="theme-color" content="#14202a">
+<meta name="description" content="Prototipo: la cámara revisa tu postura y te avisa con colores. Guía orientativa.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono-192.png">
 <!--
-  SEMÁFORO DE EJERCICIOS · v3.1 (Iteración 1)
+  SEMÁFORO DE EJERCICIOS · v3.2
 
-  Registro de cambios (v3 → v3.1)
-  - Durante el ejercicio, el panel (semáforo, mensaje, contadores y botones) va al lado
-    de la cámara en pantallas anchas o con el celular horizontal. En celular vertical
-    sigue debajo, porque al lado el video quedaría muy chico.
-  - Pantalla grande: ahora la cámara ocupa toda la pantalla. El color del semáforo se
-    ve como un marco grueso alrededor del video, y el mensaje, los contadores y los
-    botones quedan en una franja pequeña abajo, sobre el video.
+  Registro de cambios (v3.1 → v3.2)
+  - Cuenta regresiva de 6 s por defecto, con selector de 3, 6 o 10 s (se recuerda).
+  - Aviso de privacidad en la pantalla inicial, con "Más información" desplegable.
+  - Paso de encuadre: "Hacer ejemplo" solo se activa cuando el cuerpo se ve completo,
+    de lado, a buena distancia y en posición, durante 1 s seguido. Si algo falla, se
+    dice qué (pies, cabeza, manos, luz, giro, distancia, posición).
+  - Modo ligero: detección más liviana (modelo "lite"). Se activa en Ajustes o desde una
+    sugerencia automática si la imagen va lenta (menos de 12 cuadros por segundo).
+  - Series y descansos: número de series y segundos de descanso. El ejemplo se hace una
+    sola vez. Pantalla de descanso con cuenta regresiva y botón "Saltar descanso".
+    Si la app te detiene por pérdida de forma, termina la sesión (no sigue a la otra serie).
+  - Versión instalable (PWA): con manifest.webmanifest y sw.js funciona sin internet
+    después de la primera carga. Requiere publicarla con https.
+  - Se quitó la tipografía de Google Fonts: ahora usa la del sistema. Así la página no
+    contacta a Google y funciona sin internet.
+  - Ajustes (cuenta regresiva, modo ligero, hidratación) se guardan en el dispositivo.
 
-  Registro de cambios (v2 → v3)
-  - Una sola app con los cuatro ejercicios: sentadilla (antes solo en v1), sentadilla
-    isométrica, plancha y flexiones.
-  - El código quedó en tres bloques: RANGOS (números editables por un profesional),
-    EJERCICIOS (qué mide y cómo evalúa cada ejercicio) y MOTOR (cámara, detección,
-    métricas, dibujo e interfaz). Para agregar un ejercicio se suma una entrada en
-    RANGOS y otra en EJERCICIOS, sin tocar el motor.
-  - Color por zona del cuerpo: cada evaluación indica qué zona falla (espalda, caderas,
-    rodillas, codos). El esqueleto pinta grueso solo ese tramo; en caderas aparece una
-    flecha (sube/baja) y, en plancha y flexiones, una línea de referencia punteada.
-  - Pantalla grande: todo el fondo toma el color del semáforo, con mensaje y contador
-    enormes y un símbolo (✓ ! ✕ 💧) para no depender solo del color. Mantiene la
-    pantalla encendida si el navegador lo permite.
-  - Sonidos cortos opcionales por color (apagados por defecto). No hay voz.
-  - Aviso si el ejemplo calibrado queda fuera de los rangos recomendados (modelo híbrido).
-  - Los límites de seguridad (rojo) se aplican también durante el ejemplo.
-  - Sentadilla: se quitaron los campos de peso (los ejercicios son de peso corporal) y
-    ahora usa meta, aviso de parar y el paso explícito "Hacer ejemplo", igual que el resto.
-  - "Recalibrar" pasa a llamarse "Repetir ejemplo" y reinicia los contadores de la serie.
+  v3.1: panel al lado de la cámara; pantalla grande con la cámara completa y marco de color.
+  v3:   cuatro ejercicios unificados, rangos editables, color por zona, pantalla grande,
+        sonidos opcionales, aviso de ejemplo fuera de rango.
 
   Todos los números de RANGOS son valores iniciales SIN VALIDAR.
 -->
 <style>
 :root{--bg:#e8edf0;--card:#fff;--tx:#14202a;--mu:#506070;--ln:#cdd6dc;--ac:#14202a;--estado:#6b7280;--estado-tx:#fff;
-  --f:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  --f:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
 @media (prefers-color-scheme:dark){:root{--bg:#121a21;--card:#1b252e;--tx:#e8eef3;--mu:#9aa9b6;--ln:#2c3944;--ac:#e8eef3}}
 *{box-sizing:border-box}
 body{margin:0;padding:16px;padding-top:max(16px,env(safe-area-inset-top));background:var(--bg);color:var(--tx);font:17px/1.5 var(--f)}
@@ -53,19 +48,26 @@ h1{font-size:1.6rem;line-height:1.2;margin:0}h2{font-size:1.1rem;margin:.8em 0 .
 .mu{color:var(--mu);font-size:.92rem}
 label{display:block;margin:10px 0 2px}
 label.check{display:flex;gap:8px;align-items:center}
-input[type=number]{width:120px;padding:9px;border:1px solid var(--ln);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
-input[type=checkbox]{width:20px;height:20px}
+input[type=number],select{width:120px;padding:9px;border:1px solid var(--ln);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+select{width:auto;min-width:150px}
+input[type=checkbox]{width:20px;height:20px;flex:none}
 button{padding:11px 16px;border:0;border-radius:8px;background:var(--ac);color:var(--bg);font:inherit;font-weight:700;cursor:pointer;margin:4px 6px 4px 0}
 button.s{background:transparent;color:var(--tx);border:1px solid var(--ln);font-weight:400}
 button:disabled{opacity:.4;cursor:not-allowed}
-button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #3b82f6;outline-offset:2px}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #3b82f6;outline-offset:2px}
 .warn{border-left:4px solid #eab308;padding:8px 12px;margin:10px 0;background:var(--bg);border-radius:4px;font-size:.95rem}
+.priv{border-left:4px solid #22c55e;padding:8px 12px;margin:10px 0;background:var(--bg);border-radius:4px;font-size:.95rem}
+.priv summary{cursor:pointer;text-decoration:underline;color:var(--tx);display:inline}
+.priv details p{margin:.5em 0}
+details.ajustes{margin-top:14px;border-top:1px solid var(--ln);padding-top:8px}
+details.ajustes summary{cursor:pointer;font-weight:700}
+.fila{display:flex;flex-wrap:wrap;gap:4px 24px}
 #grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px}
 .ex{display:flex;flex-direction:column;align-items:center;gap:4px;margin:0;padding:12px 8px;background:var(--bg);color:var(--tx);border:1px solid var(--ln);text-align:center;font-weight:400}
 .ex svg{width:100%;max-width:130px;height:auto}
 .ex b{font-size:1rem}.ex span{font-size:.82rem;color:var(--mu)}
 .ex:not(:disabled):hover{border-color:var(--tx)}
-#meta,#etapa,#resumen,#salirGrande,#avisoRef{display:none}
+#meta,#etapa,#resumen,#salirGrande,#avisoRef,#lento,#instalar,#descanso{display:none}
 .paso{font-weight:700;margin:0}
 #vw{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:4/3}
 canvas{width:100%;height:100%;display:block;transform:scaleX(-1)}
@@ -75,6 +77,14 @@ canvas{width:100%;height:100%;display:block;transform:scaleX(-1)}
 #msg{font-size:1.2rem;font-weight:700}
 .n{display:flex;gap:24px;margin-top:8px}.n b{font-size:1.6rem}
 .ctrl{margin-top:10px}
+#fps{margin:6px 0 0}
+
+/* ---------- Pantalla de descanso (sobre el video) ---------- */
+#descanso{position:absolute;inset:0;z-index:2;background:rgba(20,32,42,.86);color:#fff;
+  flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:16px}
+#descanso.on{display:flex}
+#dTiempo{font-size:clamp(3.2rem,14vmin,8rem);font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+#descanso button{background:#fff;color:#14202a;margin-top:10px}
 
 /* ---------- Panel al lado de la cámara ---------- */
 body.sesion main{max-width:1180px}
@@ -90,12 +100,12 @@ body.sesion main{max-width:1180px}
 /* ---------- Modo pantalla grande: la cámara ocupa todo ---------- */
 body.grande{overflow:hidden}
 body.grande #etapa{position:fixed;inset:0;z-index:10;background:#000;color:#fff;padding:0}
-body.grande #stp,body.grande #tip,body.grande #avisoRef{display:none!important}
+body.grande #stp,body.grande #tip,body.grande #avisoRef,body.grande #fps{display:none!important}
 body.grande #zona{display:block;height:100%}
 body.grande #vw{position:absolute;inset:0;border-radius:0;aspect-ratio:auto}
 body.grande canvas{object-fit:contain}
 /* Marco de color: el estado se ve en el borde sin tapar a la persona */
-body.grande #vw::after{content:"";position:absolute;inset:0;pointer-events:none;
+body.grande #vw::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:3;
   box-shadow:inset 0 0 0 clamp(14px,3.5vmin,34px) var(--estado);transition:box-shadow .25s}
 body.grande #panel{position:absolute;top:auto;left:clamp(14px,3.5vmin,34px);right:clamp(14px,3.5vmin,34px);bottom:clamp(14px,3.5vmin,34px);
   display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:24px 12px calc(10px + env(safe-area-inset-bottom));
@@ -108,7 +118,7 @@ body.grande .n{margin:0;gap:18px;text-shadow:0 1px 3px #000}
 body.grande .n b{font-size:1.4rem}
 body.grande .n .mu{color:#fff;opacity:.85;font-size:.8rem}
 /* Botones arriba a la derecha, para no tapar el cuerpo */
-body.grande #panel .ctrl{margin:0;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;position:fixed;
+body.grande #panel .ctrl{margin:0;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;position:fixed;z-index:4;
   top:calc(clamp(14px,3.5vmin,34px) + 10px + env(safe-area-inset-top));right:calc(clamp(14px,3.5vmin,34px) + 10px);max-width:70vw}
 body.grande #panel .ctrl button{display:inline-block;width:auto;margin:0;padding:8px 12px;font-size:.92rem;background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.6)}
 body.grande #grande,body.grande #sonido,body.grande #rc{display:none!important}
@@ -119,15 +129,31 @@ body.grande #panel .ctrl #salirGrande{display:inline-block}
 <header class="top">
   <div class="signal" aria-hidden="true"><i></i><i></i><i></i></div>
   <div><h1>Semáforo de ejercicios</h1>
-  <p class="mu" style="margin:0">Prototipo v3.1. Verde: bien. Amarillo: corrige. Rojo: para. Azul: hidrátate. Gris: esperando.</p></div>
+  <p class="mu" style="margin:0">Prototipo v3.2. Verde: bien. Amarillo: corrige. Rojo: para. Azul: hidrátate. Gris: esperando.</p></div>
 </header>
 
 <section id="inicio" class="card">
   <div class="warn">Esta app es una guía orientativa y no reemplaza a un profesional. Si sientes dolor, detente.</div>
+  <div class="priv">Tu imagen se procesa en tu dispositivo y no se envía a ningún servidor.
+    <details><summary>Más información</summary>
+      <p>La detección de postura funciona dentro de tu navegador. El video de la cámara no se graba, no se guarda y no sale de tu teléfono o computador.</p>
+      <p>La primera vez, la página descarga el programa de detección desde un servicio público (jsDelivr). Esa descarga no incluye imágenes tuyas. Después queda guardada y puede funcionar sin internet.</p>
+      <p>En tu dispositivo solo se guardan tus ajustes (cuenta regresiva, modo ligero e hidratación). Puedes borrarlos limpiando los datos del sitio en tu navegador.</p>
+    </details>
+  </div>
   <label class="check"><input id="ok" type="checkbox"> Entiendo el aviso</label>
   <h2>Elige un ejercicio</h2>
   <div id="grid"></div>
-  <label for="hm">Recordar hidratación cada (minutos)</label><input id="hm" type="number" min="1" value="15">
+  <details class="ajustes"><summary>Ajustes</summary>
+    <div class="fila">
+      <div><label for="cr">Cuenta regresiva antes del ejemplo</label>
+        <select id="cr"><option value="3">3 segundos</option><option value="6" selected>6 segundos</option><option value="10">10 segundos</option></select></div>
+      <div><label for="hm">Recordar hidratación cada (minutos)</label><input id="hm" type="number" min="1" value="15"></div>
+    </div>
+    <label class="check"><input id="lig" type="checkbox"> Modo ligero (para celulares modestos: más rápido, algo menos preciso)</label>
+  </details>
+  <p id="offline" class="mu"></p>
+  <button id="instalar" class="s">Instalar la app</button>
 </section>
 
 <section id="meta" class="card">
@@ -135,7 +161,11 @@ body.grande #panel .ctrl #salirGrande{display:inline-block}
   <label for="gv" id="gl"></label><input id="gv" type="number" min="1">
   <label for="gu" id="gul"></label><input id="gu" type="number" min="0">
   <div class="warn" id="gw" style="display:none">Tu meta es mayor a lo que haces normalmente. La app será más estricta y puede pedirte que pares antes si pierdes la forma.</div>
-  <p class="mu">La app te avisará cuando llegues a tu meta, o antes si tu forma se deteriora.</p>
+  <div class="fila">
+    <div><label for="ns">Número de series</label><input id="ns" type="number" min="1" max="10" value="1"></div>
+    <div id="ndBox" style="display:none"><label for="nd">Descanso entre series (segundos)</label><input id="nd" type="number" min="5" max="600" value="60"></div>
+  </div>
+  <p class="mu">La meta es por serie. El ejemplo se hace una sola vez, al inicio. La app te avisará al cumplir cada serie, o antes si tu forma se deteriora.</p>
   <button id="gc">Continuar</button><button id="gb" class="s">Cambiar ejercicio</button>
   <p id="err" class="mu" role="alert"></p>
 </section>
@@ -144,13 +174,23 @@ body.grande #panel .ctrl #salirGrande{display:inline-block}
   <p id="stp" class="paso"></p>
   <p id="tip" class="mu"></p>
   <div id="avisoRef" class="warn"></div>
+  <div id="lento" class="warn">La imagen va lenta en este equipo. El modo ligero puede ayudar.
+    <br><button id="activarLigero" class="s">Activar modo ligero</button><button id="ignorarLento" class="s">Seguir así</button></div>
   <div id="zona">
-  <div id="vw"><canvas id="cv"></canvas></div>
+  <div id="vw"><canvas id="cv"></canvas>
+    <div id="descanso" role="timer" aria-live="polite">
+      <div>Descanso</div>
+      <div id="dTiempo">0:00</div>
+      <div id="dSig"></div>
+      <div class="mu" style="color:#fff;opacity:.85">Aprovecha de hidratarte.</div>
+      <button id="saltar">Saltar descanso</button>
+    </div>
+  </div>
   <div id="panel">
   <div id="bar" aria-live="polite"><div id="light"><span id="sym">…</span></div><div id="msg">Cargando…</div></div>
   <div class="n"><div><b id="n1">0</b><br><span id="l1" class="mu"></span></div><div><b id="n2">0</b><br><span id="l2" class="mu"></span></div></div>
   <div class="ctrl">
-    <button id="cal" style="display:none">Hacer ejemplo</button>
+    <button id="cal" style="display:none" disabled>Hacer ejemplo</button>
     <button id="hyd" style="display:none">Ya me hidraté</button>
     <button id="grande" class="s">Pantalla grande</button>
     <button id="sonido" class="s" aria-pressed="false">Activar sonidos</button>
@@ -158,6 +198,7 @@ body.grande #panel .ctrl #salirGrande{display:inline-block}
     <button id="salirGrande">Salir de pantalla grande</button>
     <button id="fin">Terminar sesión</button>
   </div>
+  <p id="fps" class="mu"></p>
   </div>
   </div>
 </section>
@@ -177,7 +218,10 @@ body.grande #panel .ctrl #salirGrande{display:inline-block}
    hombro-tobillo, en proporción al largo del cuerpo (positivo = cadera baja).
    ===================================================================== */
 const RANGOS={
-  general:{visibilidadMin:.45, suavizado:.5, cuentaRegresiva:3, capturaSeg:4, muestrasMin:20},
+  general:{visibilidadMin:.45, suavizado:.5, cuentaRegresiva:6, capturaSeg:4, muestrasMin:20, fpsMin:12},
+  // Encuadre: qué tan de lado (separación entre hombros / largo del torso),
+  // tamaño mínimo del cuerpo en la imagen, margen al borde y segundos estable
+  encuadre:{ladoMax:.5, tamanoMin:.4, borde:.02, visPunto:.3, estableSeg:1},
   paradas:{margenEstricto:1.2, repsMalas:3, repsMalasEstricta:2, segSinForma:5, segSinFormaEstricta:3},
   sentadilla:{dePieMin:.6, bajadaEjemplo:125, bajadaMax:130, bajadaMargen:25, subida:160, profundidadMargen:15,
     espaldaMargen:12, espaldaMax:45, espaldaRojo:55,
@@ -307,6 +351,7 @@ const $=id=>document.getElementById(id);
 const C={n:'#6b7280',g:'#22c55e',y:'#eab308',r:'#ef4444',b:'#3b82f6'};
 const SIM={n:'…',g:'✓',y:'!',r:'✕',b:'💧'};
 const IDX={izq:[11,13,15,23,25,27],der:[12,14,16,24,26,28]},K=['sh','el','wr','hp','kn','an'];
+const MP='https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/';
 // Tramos del esqueleto y la zona a la que pertenece cada uno
 const TRAMOS=[['wr','el','codos'],['el','sh','codos'],['sh','hp','espalda'],['hp','kn','caderas'],['kn','an','rodillas']];
 const ARTIC={el:'codos',hp:'caderas',kn:'rodillas'};
@@ -317,15 +362,31 @@ const ver=(id,on)=>{$(id).style.display=on?'':'none'};
 function ang(a,b,c){const u=[a.x-b.x,a.y-b.y],v=[c.x-b.x,c.y-b.y],m=Math.hypot(...u)*Math.hypot(...v);
   if(!m)return 180;return Math.acos(Math.max(-1,Math.min(1,(u[0]*v[0]+u[1]*v[1])/m)))*180/Math.PI}
 
+/* ---------- Ajustes guardados en el dispositivo ---------- */
+const AJ_CLAVE='semaforo-ajustes';
+function leerAjustes(){try{return JSON.parse(localStorage.getItem(AJ_CLAVE))||{}}catch(e){return{}}}
+function guardarAjustes(){try{localStorage.setItem(AJ_CLAVE,JSON.stringify({cr:$('cr').value,hm:$('hm').value,lig:$('lig').checked}))}catch(e){}}
+(()=>{const a=leerAjustes();
+  if(['3','6','10'].includes(String(a.cr)))$('cr').value=String(a.cr);
+  else $('cr').value=String(RANGOS.general.cuentaRegresiva);
+  if(a.hm)$('hm').value=a.hm;
+  if(a.lig)$('lig').checked=true;
+  ['cr','hm','lig'].forEach(id=>$(id).addEventListener('change',guardarAjustes));
+})();
+
 let S=null,pose=null,stream=null,corriendo=false,elegido=null;
 
-function nuevaSesion(id,meta,habitual){
-  S={id,E:EJERCICIOS[id],R:RANGOS[id],meta,habitual,
+function nuevaSesion(id,meta,habitual,series,descanso){
+  S={id,E:EJERCICIOS[id],R:RANGOS[id],meta,habitual,series,descanso,
     estricta:habitual>0&&meta>habitual*RANGOS.paradas.margenEstricto,
-    fase:'ejemplo',ref:null,cd:null,muestras:[],ejemploReps:[],baja:false,rep:null,
+    cuenta:parseFloat($('cr').value)||RANGOS.general.cuentaRegresiva,
+    ligero:$('lig').checked,
+    fase:'ejemplo',ref:null,cd:null,muestras:[],ejemploReps:[],baja:false,rep:null,encDesde:0,
+    serieActual:1,resultados:[],serieGuardada:false,descansoFin:0,ultimoBip:0,
     reps:0,buenas:0,rachaMala:0,tiempoMalo:0,tBuena:0,tPos:0,errores:{},
     terminando:false,motivo:'',hastaT:0,cur:'',zonas:{},dir:null,
-    M:{knee:170,elb:170,lean:0,dev:0,horiz:1},ultimoT:performance.now(),hidratar:false,ultimaHid:Date.now()};
+    M:{knee:170,elb:170,lean:0,dev:0,horiz:1},ultimoT:performance.now(),hidratar:false,ultimaHid:Date.now(),
+    fpsN:0,fpsT0:performance.now(),lentoAvisado:false};
 }
 
 // Cambia el semáforo: color, símbolo, mensaje y zonas a pintar
@@ -346,9 +407,10 @@ function contadores(){
 }
 
 function setPaso(n){
+  const meta=S.E.tipo==='mantener'?S.meta+' segundos':S.meta+' repeticiones';
   $('stp').textContent=n===1
-    ?'Paso 1 de 2: haz tu ejemplo con la mejor técnica ('+S.E.ejemplo+'). Con él la app aprende tu forma correcta.'
-    :'Paso 2 de 2: tu serie. Meta: '+(S.E.tipo==='mantener'?S.meta+' segundos':S.meta+' repeticiones')+'.';
+    ?'Paso 1 de 2: ubícate en cuadro y haz tu ejemplo con la mejor técnica ('+S.E.ejemplo+'). Con él la app aprende tu forma correcta.'
+    :'Paso 2 de 2: '+(S.series>1?'serie '+S.serieActual+' de '+S.series:'tu serie')+'. Meta: '+meta+'.';
 }
 
 function metricas(p){
@@ -361,8 +423,42 @@ function metricas(p){
   M.horiz=Math.abs(p.sh.y-p.an.y)/len;
 }
 
+/* ---------- Encuadre: antes del ejemplo ----------
+   Devuelve un mensaje si algo falla, o '' si el encuadre está bien. */
+function revisarEncuadre(Lm,p,lado,W,H){
+  const Q=RANGOS.encuadre,E=S.E,b=Q.borde;
+  const fuera=pt=>!pt||(pt.visibility||0)<Q.visPunto||pt.x<b||pt.x>1-b||pt.y<b||pt.y>1-b;
+  const ix=k=>Lm[lado[K.indexOf(k)]];
+  if(fuera(ix('an')))return 'No se ven tus pies. Aleja el dispositivo o inclínalo hacia abajo';
+  if(fuera(Lm[0]))return 'No se ve tu cabeza. Aleja el dispositivo o inclínalo hacia arriba';
+  if(E.puntos.includes('wr')&&fuera(ix('wr')))return 'No se ven tus manos. Aleja un poco el dispositivo';
+  if(E.puntos.some(k=>fuera(ix(k))))return 'Tu cuerpo no cabe completo. Aleja un poco el dispositivo';
+  const vis=E.puntos.reduce((a,k)=>a+p[k].v,0)/E.puntos.length;
+  if(vis<RANGOS.general.visibilidadMin)return 'Te veo poco. Mejora la luz o usa ropa que contraste con el fondo';
+  // De lado: los dos hombros casi se superponen en la imagen
+  const sep=Math.hypot((Lm[11].x-Lm[12].x)*W,(Lm[11].y-Lm[12].y)*H),torso=dist(p.sh,p.hp)||1;
+  if(sep/torso>Q.ladoMax)return 'Gírate: ponte de lado a la cámara';
+  // Tamaño: el cuerpo debe ocupar una buena parte de la imagen
+  const pts=[p.sh,p.hp,p.an,{x:Lm[0].x*W,y:Lm[0].y*H}],xs=pts.map(q=>q.x),ys=pts.map(q=>q.y);
+  const tam=Math.max((Math.max(...xs)-Math.min(...xs))/W,(Math.max(...ys)-Math.min(...ys))/H);
+  if(tam<Q.tamanoMin)return 'Estás muy lejos. Acércate un poco';
+  // En posición de partida
+  if(E.tipo==='reps'){if(!E.enPosicion(S.M,S.R))return E.msgFuera}
+  else{const r=E.evaluar(S.M,null,S.R);if(!r.pos)return r.m}
+  return '';
+}
+function enEncuadre(){return S.fase==='ejemplo'&&S.cd===null&&!S.hidratar&&!S.terminando}
+function pasoEncuadre(msg,now){
+  if(msg){S.encDesde=0;$('cal').disabled=true;estado('n',msg);return}
+  // Seguridad: aunque esté bien encuadrado, si la postura es de riesgo se avisa
+  if(S.E.tipo==='mantener'){const r=S.E.evaluar(S.M,null,S.R);if(r.c==='r'){S.encDesde=0;$('cal').disabled=true;estado('r',r.m,r.zonas,r.dir);return}}
+  if(!S.encDesde)S.encDesde=now;
+  if(now-S.encDesde<RANGOS.encuadre.estableSeg*1000){$('cal').disabled=true;estado('n','Bien. Quédate así un momento…');return}
+  $('cal').disabled=false;estado('g','Encuadre listo. Pulsa "Hacer ejemplo"');
+}
+
 function guardarRef(ref,now){
-  S.ref=ref;S.fase='serie';S.tBuena=S.tPos=S.tiempoMalo=0;S.reps=S.buenas=S.rachaMala=0;S.errores={};S.baja=false;
+  S.ref=ref;S.fase='serie';reiniciarSerie();
   const fuera=S.E.validar(ref,S.R);
   if(fuera.length){
     $('avisoRef').textContent='Tu ejemplo quedó fuera del rango recomendado: '+fuera.join(' y ')+'. Si puedes, pulsa "Repetir ejemplo". Los límites de seguridad siguen activos.';
@@ -372,17 +468,56 @@ function guardarRef(ref,now){
   estado('g','Ejemplo guardado. ¡Empieza tu serie!');S.hastaT=now+1500;
 }
 
+/* ---------- Series y descansos ---------- */
+function reiniciarSerie(){
+  Object.assign(S,{tBuena:0,tPos:0,tiempoMalo:0,reps:0,buenas:0,rachaMala:0,baja:false,serieGuardada:false});
+}
+function guardarSerie(){
+  if(S.serieGuardada||S.fase==='ejemplo'||S.fase==='descanso')return;
+  S.serieGuardada=true;
+  S.resultados.push({n:S.serieActual,reps:S.reps,buenas:S.buenas,tBuena:S.tBuena,tPos:S.tPos});
+}
+function metaCumplida(){
+  if(S.serieActual<S.series){iniciarDescanso();return}
+  parar('g',S.series>1?'¡Completaste todas las series!':'¡Meta cumplida! Puedes parar',
+    S.series>1?'Completaste las '+S.series+' series':'Meta cumplida');
+}
+function iniciarDescanso(){
+  estado('g','¡Serie '+S.serieActual+' completa! Descansa');
+  guardarSerie();
+  S.fase='descanso';S.descansoFin=Date.now()+S.descanso*1000;S.ultimoBip=0;
+  S.hidratar=false;ver('hyd',false);ver('rc',false);
+  $('dSig').textContent='Siguiente: serie '+(S.serieActual+1)+' de '+S.series;
+  $('descanso').classList.add('on');actualizarDescanso();
+}
+function actualizarDescanso(){
+  const rest=Math.max(0,Math.ceil((S.descansoFin-Date.now())/1000));
+  $('dTiempo').textContent=fmt(rest);
+  if($('msg').textContent.indexOf('Descanso')!==0||rest!==S._restPrev){S._restPrev=rest;estado('n','Descanso: '+fmt(rest))}
+  if(rest<=3&&rest>0&&rest!==S.ultimoBip){S.ultimoBip=rest;sonar('y',true)}
+  if(rest<=0)empezarSerie();
+}
+function empezarSerie(){
+  if(S.fase!=='descanso')return;
+  S.serieActual++;reiniciarSerie();
+  S.fase='serie';S.ultimaHid=Date.now();S.ultimoT=performance.now();
+  $('descanso').classList.remove('on');ver('rc',true);
+  setPaso(2);contadores();
+  estado('g','¡Serie '+S.serieActual+'! Empieza');S.hastaT=performance.now()+1500;
+}
+$('saltar').onclick=empezarSerie;
+
 // Ejercicios de mantener
 function pasoMantener(dt,now){
   const G=RANGOS.general,P=RANGOS.paradas,r=S.E.evaluar(S.M,S.ref,S.R);
   if(S.fase==='ejemplo'){
     if(r.c==='r'){estado('r',r.m,r.zonas,r.dir);return} // seguridad, aun sin ejemplo
-    if(S.cd===null){estado('n','Ponte en posición y pulsa "Hacer ejemplo"');return}
-    const el=(now-S.cd)/1000,cr=G.cuentaRegresiva,fin=cr+G.capturaSeg;
+    if(S.cd===null)return;
+    const el=(now-S.cd)/1000,cr=S.cuenta,fin=cr+G.capturaSeg;
     if(el<cr){estado('n','Prepárate… '+Math.ceil(cr-el));return}
     if(el<fin){estado('n','Ejemplo: mantén tu mejor forma… '+Math.ceil(fin-el));if(r.pos)S.muestras.push(S.E.muestra(S.M));return}
     S.cd=null;
-    if(S.muestras.length<G.muestrasMin){estado('n','No te vi bien. Pulsa "Hacer ejemplo" y repite');ver('cal',true);return}
+    if(S.muestras.length<G.muestrasMin){S.encDesde=0;$('cal').disabled=true;ver('cal',true);estado('n','No te vi bien. Vuelve a ubicarte y repite el ejemplo');S.hastaT=now+2000;return}
     guardarRef(S.E.ref(S.muestras),now);return;
   }
   if(now<S.hastaT)return;
@@ -393,17 +528,17 @@ function pasoMantener(dt,now){
     else{S.tiempoMalo+=dt;if(r.prob)S.errores[r.prob]=(S.errores[r.prob]||0)+dt}
   }
   contadores();
-  if(S.tPos>=S.meta)parar('g','¡Meta cumplida! Puedes parar','Meta cumplida');
+  if(S.tPos>=S.meta)metaCumplida();
   else if(S.tiempoMalo>(S.estricta?P.segSinFormaEstricta:P.segSinForma))parar('r','Para: perdiste la forma','Se detuvo por pérdida de forma');
 }
 
 // Ejercicios de repeticiones
 function pasoReps(now){
-  const E=S.E,R=S.R,M=S.M,G=RANGOS.general,pos=E.enPosicion(M,R);
+  const E=S.E,R=S.R,M=S.M,pos=E.enPosicion(M,R);
   if(S.fase==='ejemplo'){
-    if(S.cd===null){estado('n','Ponte en posición y pulsa "Hacer ejemplo"');return}
+    if(S.cd===null)return;
     const el=(now-S.cd)/1000;
-    if(el<G.cuentaRegresiva){estado('n','Prepárate… '+Math.ceil(G.cuentaRegresiva-el));return}
+    if(el<S.cuenta){estado('n','Prepárate… '+Math.ceil(S.cuenta-el));return}
   }
   const v=M[E.medida];
   if(pos){
@@ -416,7 +551,7 @@ function pasoReps(now){
       if(v>E.subida(R)){S.baja=false;finRep(now)}
     }
   }
-  if(now<S.hastaT)return;
+  if(now<S.hastaT||S.fase==='descanso'||S.terminando)return;
   if(!pos){estado('n',E.msgFuera);return}
   const r=S.baja?E.durante(M,S.fase==='serie'?S.ref:null,R):null;
   if(S.fase==='ejemplo'){
@@ -442,11 +577,10 @@ function finRep(now){
   if(!p.length){S.buenas++;estado('g','Buena repetición')}
   else{const z={};p.forEach(x=>z[x.z]=x.c);const peor=p.find(x=>x.c==='r')||p[0];estado(peor.c,peor.m,z,peor.dir)}
   S.hastaT=now+2200;contadores();
-  if(S.reps>=S.meta)parar('g','¡Meta cumplida! Puedes parar','Meta cumplida');
+  if(S.reps>=S.meta)metaCumplida();
   else if(S.rachaMala>=(S.estricta?P.repsMalasEstricta:P.repsMalas))parar('r','Para: tu forma se deterioró','Se detuvo por pérdida de forma');
 }
 
-// Dibuja el esqueleto: tramo con problema grueso y en su color; el resto, en verde o gris
 function dibujar(p){
   const W=cv.width,s=W/640,base=(S.cur==='y'||S.cur==='r')?'g':S.cur;
   const col=z=>S.zonas[z]||base,mal=z=>S.zonas[z]==='y'||S.zonas[z]==='r';
@@ -481,14 +615,21 @@ function onResults(res){
   if(!S||S.fase==='fin')return;
   const W=cv.width,H=cv.height;ctx.drawImage(res.image,0,0,W,H);
   const now=performance.now(),dt=Math.min(.25,(now-S.ultimoT)/1000);S.ultimoT=now;
+  medirVelocidad(now);
   const Lm=res.poseLandmarks;
-  if(!Lm){if(!S.terminando)estado('n','No te veo. Ponte de lado, con el cuerpo completo a la vista');return}
+  if(S.fase==='descanso'){return}
+  if(!Lm){
+    if(enEncuadre())pasoEncuadre('No te veo. Ponte de lado, con el cuerpo completo a la vista',now);
+    else if(!S.terminando)estado('n','No te veo. Ponte de lado, con el cuerpo completo a la vista');
+    return;
+  }
   const lado=ix=>{const p={};K.forEach((k,i)=>{const l=Lm[ix[i]];p[k]={x:l.x*W,y:l.y*H,v:l.visibility||0}});return p};
   const vis=p=>S.E.puntos.reduce((a,k)=>a+p[k].v,0)/S.E.puntos.length;
-  const A=lado(IDX.izq),B=lado(IDX.der),p=vis(A)>=vis(B)?A:B;
+  const A=lado(IDX.izq),B=lado(IDX.der),usaIzq=vis(A)>=vis(B),p=usaIzq?A:B;
+  metricas(p);
+  if(enEncuadre()){pasoEncuadre(revisarEncuadre(Lm,p,usaIzq?IDX.izq:IDX.der,W,H),now);dibujar(p);return}
   if(vis(p)<RANGOS.general.visibilidadMin){
     if(!S.terminando)estado('n','No te veo bien. Aléjate o mejora la luz; cuerpo completo y de lado');return}
-  metricas(p);
   if(!S.terminando){
     if(S.hidratar)estado('b','Hora de hidratarse');
     else if(S.E.tipo==='mantener')pasoMantener(dt,now);
@@ -498,6 +639,23 @@ function onResults(res){
 }
 
 async function loop(){if(!corriendo)return;try{await pose.send({image:vd})}catch(e){}requestAnimationFrame(loop)}
+
+/* ---------- Modo ligero y medición de velocidad ---------- */
+function opcionesPose(ligero){return{modelComplexity:ligero?0:1,smoothLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5}}
+function medirVelocidad(now){
+  S.fpsN++;
+  const el=(now-S.fpsT0)/1000;
+  if(el<3)return;
+  const fps=S.fpsN/el;S.fpsN=0;S.fpsT0=now;
+  $('fps').textContent='Velocidad: '+Math.round(fps)+' cuadros por segundo'+(S.ligero?' (modo ligero)':'');
+  if(fps<RANGOS.general.fpsMin&&!S.ligero&&!S.lentoAvisado){S.lentoAvisado=true;$('lento').style.display='block'}
+}
+$('activarLigero').onclick=()=>{
+  S.ligero=true;$('lig').checked=true;guardarAjustes();
+  pose.setOptions(opcionesPose(true));
+  $('lento').style.display='none';
+};
+$('ignorarLento').onclick=()=>{$('lento').style.display='none'};
 
 /* ---------- Sonidos opcionales (no son voz) ---------- */
 let actx=null,sonidoOn=false,ultSon=0;
@@ -544,72 +702,100 @@ $('ok').onchange=e=>document.querySelectorAll('.ex').forEach(b=>b.disabled=!e.ta
 document.querySelectorAll('.ex').forEach(b=>b.onclick=()=>{
   elegido=b.dataset.id;const e=EJERCICIOS[elegido],m=e.tipo==='mantener';
   $('inicio').style.display='none';$('meta').style.display='block';$('gt').textContent=e.nombre;
-  $('gl').textContent=m?'¿Cuántos segundos quieres mantenerlo hoy?':'¿Cuántas repeticiones quieres hacer hoy?';
+  $('gl').textContent=m?'¿Cuántos segundos quieres mantenerlo en cada serie?':'¿Cuántas repeticiones quieres hacer en cada serie?';
   $('gul').textContent=m?'Segundos que mantienes normalmente (opcional)':'Repeticiones que haces normalmente (opcional)';
   $('gv').value=e.metaDef;$('gu').value='';revisarMeta();
 });
 function revisarMeta(){const g=parseFloat($('gv').value),u=parseFloat($('gu').value);
-  $('gw').style.display=(u>0&&g>u*RANGOS.paradas.margenEstricto)?'block':'none'}
-$('gv').oninput=$('gu').oninput=revisarMeta;
+  $('gw').style.display=(u>0&&g>u*RANGOS.paradas.margenEstricto)?'block':'none';
+  $('ndBox').style.display=(parseInt($('ns').value)||1)>1?'block':'none'}
+$('gv').oninput=$('gu').oninput=$('ns').oninput=revisarMeta;
 $('gb').onclick=()=>{$('meta').style.display='none';$('inicio').style.display='block'};
 
 $('gc').onclick=async()=>{
   const meta=Math.round(parseFloat($('gv').value)),habitual=parseFloat($('gu').value)||0;
+  const series=Math.min(10,Math.max(1,parseInt($('ns').value)||1)),descanso=Math.min(600,Math.max(5,parseInt($('nd').value)||60));
   if(!(meta>0)){$('err').textContent='Escribe una meta mayor que 0.';return}
-  if(typeof Pose==='undefined'){$('err').textContent='No se pudo cargar el detector de postura. Revisa tu conexión a internet y recarga la página.';return}
+  if(typeof Pose==='undefined'){$('err').textContent='No se pudo cargar el detector de postura. Conéctate a internet y recarga la página (después de la primera carga funciona sin conexión).';return}
   $('err').textContent='';
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480},audio:false});
     vd.srcObject=stream;await vd.play();
     cv.width=vd.videoWidth||640;cv.height=vd.videoHeight||480;
   }catch(err){$('err').textContent='No se pudo iniciar la cámara: '+err.message+'. Revisa los permisos y abre la página con https.';return}
-  nuevaSesion(elegido,meta,habitual);
+  nuevaSesion(elegido,meta,habitual,series,descanso);
   const e=S.E;
   $('meta').style.display='none';$('etapa').style.display='block';document.body.classList.add('sesion');
   $('tip').textContent=e.camara;$('l1').textContent=e.etiquetas[0];$('l2').textContent=e.etiquetas[1];
-  contadores();setPaso(1);ver('cal',true);
+  contadores();setPaso(1);ver('cal',true);$('cal').disabled=true;
   estado('n','Cargando el modelo…');
-  pose=new Pose({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/'+f});
-  pose.setOptions({modelComplexity:1,smoothLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});
+  pose=new Pose({locateFile:f=>MP+f});
+  pose.setOptions(opcionesPose(S.ligero));
   pose.onResults(onResults);
   corriendo=true;loop();mantenerPantalla();
 };
 
 $('cal').onclick=()=>{S.muestras=[];S.ejemploReps=[];S.baja=false;S.cd=performance.now();ver('cal',false)};
 $('rc').onclick=()=>{
-  Object.assign(S,{ref:null,fase:'ejemplo',cd:null,muestras:[],ejemploReps:[],baja:false,
-    reps:0,buenas:0,rachaMala:0,tiempoMalo:0,tBuena:0,tPos:0,errores:{},hastaT:0});
-  $('avisoRef').style.display='none';setPaso(1);contadores();ver('cal',true);
+  if(S.fase==='descanso')return;
+  Object.assign(S,{ref:null,fase:'ejemplo',cd:null,muestras:[],ejemploReps:[],errores:{},hastaT:0,encDesde:0});
+  reiniciarSerie();
+  $('avisoRef').style.display='none';setPaso(1);contadores();ver('cal',true);$('cal').disabled=true;
 };
 $('hyd').onclick=()=>{S.hidratar=false;S.ultimaHid=Date.now();ver('hyd',false);S.ultimoT=performance.now()};
+// Reloj: hidratación y descanso
 setInterval(()=>{
-  if(!S||S.fase==='fin'||S.hidratar||S.terminando)return;
+  if(!S||S.fase==='fin'||S.terminando)return;
+  if(S.fase==='descanso'){actualizarDescanso();return}
+  if(S.hidratar)return;
   const min=parseFloat($('hm').value)||15;
   if(Date.now()-S.ultimaHid>=min*60000){S.hidratar=true;ver('hyd',true)}
-},1000);
+},250);
 
 $('fin').onclick=()=>{if(!S.motivo)S.motivo='Terminada por ti';terminar()};
 function parar(c,m,motivo){if(S.terminando)return;S.terminando=true;S.motivo=motivo;estado(c,m,S.zonas,null);setTimeout(terminar,2800)}
 
 function terminar(){
-  if(S.fase==='fin')return;S.fase='fin';
+  if(S.fase==='fin')return;
+  guardarSerie();
+  S.fase='fin';
   corriendo=false;if(stream)stream.getTracks().forEach(t=>t.stop());
   if(wl){wl.release().catch(()=>{});wl=null}
-  pantallaGrande(false);document.body.classList.remove('sesion');
-  const e=S.E,m=e.tipo==='mantener';
+  pantallaGrande(false);document.body.classList.remove('sesion');$('descanso').classList.remove('on');
+  const e=S.E,m=e.tipo==='mantener',RS=S.resultados;
+  const tot=RS.reduce((a,x)=>({reps:a.reps+x.reps,buenas:a.buenas+x.buenas,tBuena:a.tBuena+x.tBuena,tPos:a.tPos+x.tPos}),{reps:0,buenas:0,tBuena:0,tPos:0});
   const err=Object.entries(S.errores).sort((a,b)=>b[1]-a[1]);
   const lista=err.length?err.map(([k,v])=>k+': '+(m?Math.round(v)+' s':v)).join(', '):'sin errores registrados';
-  const p=m?(S.tPos>0?S.tBuena/S.tPos:0):(S.reps?S.buenas/S.reps:0),hay=m?S.tPos>0:S.reps>0;
+  const p=m?(tot.tPos>0?tot.tBuena/tot.tPos:0):(tot.reps?tot.buenas/tot.reps:0),hay=m?tot.tPos>0:tot.reps>0;
   const c=!hay?'n':p>=.8?'g':'y';
   const t=!hay?'No se registró actividad.':p>=.8?'Terminaste bien la sesión.':'Terminaste la sesión, con cosas por mejorar.';
+  const linea=x=>m?fmt(x.tBuena)+' en buena forma de '+fmt(x.tPos)+' en posición':x.reps+' repeticiones, '+x.buenas+' buenas';
   const cuerpo=m
-    ?'Tiempo en buena forma: <b>'+fmt(S.tBuena)+'</b> de <b>'+fmt(S.tPos)+'</b> en posición'
-    :'Repeticiones: <b>'+S.reps+'</b>. Buenas: <b>'+S.buenas+'</b>';
+    ?'Tiempo en buena forma: <b>'+fmt(tot.tBuena)+'</b> de <b>'+fmt(tot.tPos)+'</b> en posición'
+    :'Repeticiones: <b>'+tot.reps+'</b>. Buenas: <b>'+tot.buenas+'</b>';
+  const porSerie=S.series>1&&RS.length?'<p>'+RS.map(x=>'Serie '+x.n+': '+linea(x)).join('<br>')+'</p>':'';
   $('etapa').style.display='none';$('resumen').style.display='block';
-  $('resumen').innerHTML='<h2>'+e.nombre+'</h2><p class="mu">Meta: '+(m?fmt(S.meta):S.meta+' repeticiones')+'. '+S.motivo+'.</p>'+
+  $('resumen').innerHTML='<h2>'+e.nombre+'</h2><p class="mu">Meta: '+(m?fmt(S.meta):S.meta+' repeticiones')+(S.series>1?' por serie, '+S.series+' series':'')+'. '+S.motivo+'.</p>'+
     '<div style="display:flex;align-items:center;gap:14px"><div style="width:56px;height:56px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:1.5rem;background:'+C[c]+';color:'+(c==='y'?'#14202a':'#fff')+'">'+SIM[c]+'</div><b style="font-size:1.15rem">'+t+'</b></div>'+
-    '<p>'+cuerpo+'<br>Errores: <b>'+lista+'</b></p>'+
+    '<p>'+cuerpo+'<br>Errores: <b>'+lista+'</b></p>'+porSerie+
     (err.length?'<p>Lo que más se repitió: <b>'+err[0][0]+'</b>.</p>':'')+
     '<p class="mu">Esta app no reemplaza a un profesional. Si sentiste dolor, consulta a uno.</p><button onclick="location.reload()">Nueva sesión</button>';
 }
+
+/* ---------- Versión instalable (PWA) y uso sin internet ---------- */
+async function revisarSinInternet(){
+  try{
+    const ok=await caches.match(MP+'pose_landmark_full.tflite');
+    $('offline').textContent=ok?'✓ Lista para usar sin internet.':'Preparando el uso sin internet… mantén la conexión unos segundos.';
+    if(!ok)setTimeout(revisarSinInternet,4000);
+  }catch(e){}
+}
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('sw.js').then(()=>navigator.serviceWorker.ready).then(revisarSinInternet)
+    .catch(()=>{$('offline').textContent=''});
+}
+let pedirInstalar=null;
+window.addEventListener('beforeinstallprompt',ev=>{ev.preventDefault();pedirInstalar=ev;$('instalar').style.display='inline-block'});
+$('instalar').onclick=async()=>{if(!pedirInstalar)return;pedirInstalar.prompt();await pedirInstalar.userChoice.catch(()=>{});pedirInstalar=null;$('instalar').style.display='none'};
+window.addEventListener('appinstalled',()=>{$('instalar').style.display='none'});
 </script></main></body></html>
