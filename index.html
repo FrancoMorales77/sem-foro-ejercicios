@@ -1,801 +1,1569 @@
 <!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Semáforo de ejercicios</title>
-<meta name="theme-color" content="#14202a">
-<meta name="description" content="Prototipo: la cámara revisa tu postura y te avisa con colores. Guía orientativa.">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icono-192.png">
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pintura en el aire v2 · Dibujo AR con gestos y lápiz</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+
 <!--
-  SEMÁFORO DE EJERCICIOS · v3.2
-
-  Registro de cambios (v3.1 → v3.2)
-  - Cuenta regresiva de 6 s por defecto, con selector de 3, 6 o 10 s (se recuerda).
-  - Aviso de privacidad en la pantalla inicial, con "Más información" desplegable.
-  - Paso de encuadre: "Hacer ejemplo" solo se activa cuando el cuerpo se ve completo,
-    de lado, a buena distancia y en posición, durante 1 s seguido. Si algo falla, se
-    dice qué (pies, cabeza, manos, luz, giro, distancia, posición).
-  - Modo ligero: detección más liviana (modelo "lite"). Se activa en Ajustes o desde una
-    sugerencia automática si la imagen va lenta (menos de 12 cuadros por segundo).
-  - Series y descansos: número de series y segundos de descanso. El ejemplo se hace una
-    sola vez. Pantalla de descanso con cuenta regresiva y botón "Saltar descanso".
-    Si la app te detiene por pérdida de forma, termina la sesión (no sigue a la otra serie).
-  - Versión instalable (PWA): con manifest.webmanifest y sw.js funciona sin internet
-    después de la primera carga. Requiere publicarla con https.
-  - Se quitó la tipografía de Google Fonts: ahora usa la del sistema. Así la página no
-    contacta a Google y funciona sin internet.
-  - Ajustes (cuenta regresiva, modo ligero, hidratación) se guardan en el dispositivo.
-
-  v3.1: panel al lado de la cámara; pantalla grande con la cámara completa y marco de color.
-  v3:   cuatro ejercicios unificados, rangos editables, color por zona, pantalla grande,
-        sonidos opcionales, aviso de ejemplo fuera de rango.
-
-  Todos los números de RANGOS son valores iniciales SIN VALIDAR.
+  MediaPipe Tasks Vision (HandLandmarker) se carga con import() dinámico
+  dentro de start(), para poder mostrar un error claro si falla el CDN.
 -->
+
 <style>
-:root{--bg:#e8edf0;--card:#fff;--tx:#14202a;--mu:#506070;--ln:#cdd6dc;--ac:#14202a;--estado:#6b7280;--estado-tx:#fff;
-  --f:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
-@media (prefers-color-scheme:dark){:root{--bg:#121a21;--card:#1b252e;--tx:#e8eef3;--mu:#9aa9b6;--ln:#2c3944;--ac:#e8eef3}}
-*{box-sizing:border-box}
-body{margin:0;padding:16px;padding-top:max(16px,env(safe-area-inset-top));background:var(--bg);color:var(--tx);font:17px/1.5 var(--f)}
-main{max-width:720px;margin:auto}
-h1{font-size:1.6rem;line-height:1.2;margin:0}h2{font-size:1.1rem;margin:.8em 0 .3em}
-.top{display:flex;gap:14px;align-items:center;margin:4px 0 6px}
-.signal{display:flex;flex-direction:column;gap:4px;padding:6px;border-radius:14px;background:var(--tx);flex:none}
-.signal i{width:14px;height:14px;border-radius:50%;display:block}
-.signal i:nth-child(1){background:#ef4444}.signal i:nth-child(2){background:#eab308}.signal i:nth-child(3){background:#22c55e}
-.card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:16px;margin:14px 0}
-.mu{color:var(--mu);font-size:.92rem}
-label{display:block;margin:10px 0 2px}
-label.check{display:flex;gap:8px;align-items:center}
-input[type=number],select{width:120px;padding:9px;border:1px solid var(--ln);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
-select{width:auto;min-width:150px}
-input[type=checkbox]{width:20px;height:20px;flex:none}
-button{padding:11px 16px;border:0;border-radius:8px;background:var(--ac);color:var(--bg);font:inherit;font-weight:700;cursor:pointer;margin:4px 6px 4px 0}
-button.s{background:transparent;color:var(--tx);border:1px solid var(--ln);font-weight:400}
-button:disabled{opacity:.4;cursor:not-allowed}
-button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #3b82f6;outline-offset:2px}
-.warn{border-left:4px solid #eab308;padding:8px 12px;margin:10px 0;background:var(--bg);border-radius:4px;font-size:.95rem}
-.priv{border-left:4px solid #22c55e;padding:8px 12px;margin:10px 0;background:var(--bg);border-radius:4px;font-size:.95rem}
-.priv summary{cursor:pointer;text-decoration:underline;color:var(--tx);display:inline}
-.priv details p{margin:.5em 0}
-details.ajustes{margin-top:14px;border-top:1px solid var(--ln);padding-top:8px}
-details.ajustes summary{cursor:pointer;font-weight:700}
-.fila{display:flex;flex-wrap:wrap;gap:4px 24px}
-#grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px}
-.ex{display:flex;flex-direction:column;align-items:center;gap:4px;margin:0;padding:12px 8px;background:var(--bg);color:var(--tx);border:1px solid var(--ln);text-align:center;font-weight:400}
-.ex svg{width:100%;max-width:130px;height:auto}
-.ex b{font-size:1rem}.ex span{font-size:.82rem;color:var(--mu)}
-.ex:not(:disabled):hover{border-color:var(--tx)}
-#meta,#etapa,#resumen,#salirGrande,#avisoRef,#lento,#instalar,#descanso{display:none}
-.paso{font-weight:700;margin:0}
-#vw{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:4/3}
-canvas{width:100%;height:100%;display:block;transform:scaleX(-1)}
-#bar{display:flex;align-items:center;gap:14px;margin-top:12px}
-#light{width:64px;height:64px;border-radius:50%;background:var(--estado);color:var(--estado-tx);flex:none;transition:background .2s;border:3px solid var(--ln);display:grid;place-items:center}
-#sym{font-size:1.7rem;font-weight:700;line-height:1}
-#msg{font-size:1.2rem;font-weight:700}
-.n{display:flex;gap:24px;margin-top:8px}.n b{font-size:1.6rem}
-.ctrl{margin-top:10px}
-#fps{margin:6px 0 0}
+  :root {
+    --ink: rgba(17, 22, 40, 0.74);
+    --ink-solid: #111628;
+    --line: rgba(255, 255, 255, 0.14);
+    --text: #f4f2ee;
+    --muted: #a9b0c4;
+    --draw: #6ff0c8;
+    --erase: #ff9466;
+    --color: #c89bff;
+    --size: #ffd34d;
+    --pause: #a9b0c4;
+    --danger: #ff4867;
+    --mode: var(--pause);
+    --font: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; color: var(--text); font-family: var(--font); overflow: hidden; }
+  button, input { font-family: inherit; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--draw); outline-offset: 2px; }
 
-/* ---------- Pantalla de descanso (sobre el video) ---------- */
-#descanso{position:absolute;inset:0;z-index:2;background:rgba(20,32,42,.86);color:#fff;
-  flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;padding:16px}
-#descanso.on{display:flex}
-#dTiempo{font-size:clamp(3.2rem,14vmin,8rem);font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
-#descanso button{background:#fff;color:#14202a;margin-top:10px}
+  /* ---------- ESCENARIO: video + canvas superpuestos y en espejo ---------- */
+  .stage { position: fixed; inset: 0; background: #000; }
+  .stage video, .stage canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; transform: scaleX(-1);
+  }
+  #overlayCanvas { pointer-events: none; }
 
-/* ---------- Panel al lado de la cámara ---------- */
-body.sesion main{max-width:1180px}
-#zona{display:grid;gap:4px 20px}
-@media (min-width:760px),(orientation:landscape) and (min-width:560px){
-  #zona{grid-template-columns:minmax(0,1.7fr) minmax(230px,1fr);align-items:start}
-  #panel{position:sticky;top:12px}
-  #panel #bar{margin-top:0}
-  #panel .ctrl button{display:block;width:100%;margin:0 0 8px}
-  #panel .ctrl #salirGrande{display:none}
-}
+  /* ---------- HUD ---------- */
+  .hud {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+    max-width: calc(100% - 20px);
+    padding: 8px 8px 8px 14px;
+    background: var(--ink); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--line); border-top: 3px solid var(--mode); border-radius: 20px;
+    z-index: 20; box-shadow: 0 18px 50px rgba(0,0,0,.45);
+    transition: border-color .25s ease, opacity .3s ease;
+  }
+  .hud.hidden { opacity: 0; pointer-events: none; }
+  .hud-item { display: flex; align-items: center; gap: 9px; }
+  .hud-text { display: flex; flex-direction: column; line-height: 1.15; }
+  .hud-label { font-size: 11px; color: var(--muted); }
+  .hud-value { font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .divider { width: 1px; height: 34px; background: var(--line); }
+  .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.9); box-shadow: 0 0 14px currentColor; flex: none; }
+  .size-box { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: rgba(255,255,255,.07); }
+  .size-dot { border-radius: 50%; background: #fff; }
+  .brush-icon { font-size: 22px; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: rgba(255,255,255,.07); }
+  .mode { display: flex; align-items: center; gap: 9px; padding: 7px 13px; border-radius: 999px; background: rgba(255,255,255,.07); min-width: 190px; }
+  .mode-icon { font-size: 18px; }
+  .mode .hud-value { color: var(--mode); }
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn {
+    border: 1px solid var(--line); background: rgba(255,255,255,.08); color: var(--text);
+    padding: 9px 12px; border-radius: 13px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: background .15s ease, transform .1s ease; white-space: nowrap;
+  }
+  .btn:hover { background: rgba(255,255,255,.16); }
+  .btn:active { transform: scale(.96); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.on { background: var(--draw); color: #08261d; border-color: transparent; }
+  .btn-danger { background: var(--danger); border-color: transparent; color: #fff; }
+  .btn-danger:hover { background: #ff6680; }
+  .btn-primary { background: var(--draw); color: #08261d; border-color: transparent; }
+  .btn-sq { min-width: 40px; }
 
-/* ---------- Modo pantalla grande: la cámara ocupa todo ---------- */
-body.grande{overflow:hidden}
-body.grande #etapa{position:fixed;inset:0;z-index:10;background:#000;color:#fff;padding:0}
-body.grande #stp,body.grande #tip,body.grande #avisoRef,body.grande #fps{display:none!important}
-body.grande #zona{display:block;height:100%}
-body.grande #vw{position:absolute;inset:0;border-radius:0;aspect-ratio:auto}
-body.grande canvas{object-fit:contain}
-/* Marco de color: el estado se ve en el borde sin tapar a la persona */
-body.grande #vw::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:3;
-  box-shadow:inset 0 0 0 clamp(14px,3.5vmin,34px) var(--estado);transition:box-shadow .25s}
-body.grande #panel{position:absolute;top:auto;left:clamp(14px,3.5vmin,34px);right:clamp(14px,3.5vmin,34px);bottom:clamp(14px,3.5vmin,34px);
-  display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:24px 12px calc(10px + env(safe-area-inset-bottom));
-  background:linear-gradient(transparent,rgba(0,0,0,.65))}
-body.grande #panel #bar{margin:0;flex:1 1 240px;gap:10px}
-body.grande #light{width:46px;height:46px;border:2px solid #fff}
-body.grande #sym{font-size:1.3rem}
-body.grande #msg{font-size:clamp(1rem,2.6vw,1.4rem);text-shadow:0 1px 3px #000}
-body.grande .n{margin:0;gap:18px;text-shadow:0 1px 3px #000}
-body.grande .n b{font-size:1.4rem}
-body.grande .n .mu{color:#fff;opacity:.85;font-size:.8rem}
-/* Botones arriba a la derecha, para no tapar el cuerpo */
-body.grande #panel .ctrl{margin:0;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;position:fixed;z-index:4;
-  top:calc(clamp(14px,3.5vmin,34px) + 10px + env(safe-area-inset-top));right:calc(clamp(14px,3.5vmin,34px) + 10px);max-width:70vw}
-body.grande #panel .ctrl button{display:inline-block;width:auto;margin:0;padding:8px 12px;font-size:.92rem;background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.6)}
-body.grande #grande,body.grande #sonido,body.grande #rc{display:none!important}
-body.grande #panel .ctrl #salirGrande{display:inline-block}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
-</style></head><body><main>
 
-<header class="top">
-  <div class="signal" aria-hidden="true"><i></i><i></i><i></i></div>
-  <div><h1>Semáforo de ejercicios</h1>
-  <p class="mu" style="margin:0">Prototipo v3.2. Verde: bien. Amarillo: corrige. Rojo: para. Azul: hidrátate. Gris: esperando.</p></div>
+  /* ---------- PANELES ---------- */
+  .panel {
+    position: fixed; z-index: 16;
+    background: var(--ink); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px;
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  .panel.hidden { opacity: 0; transform: translateY(10px); pointer-events: none; }
+  .panel h2 { font-size: 15px; font-weight: 800; margin-bottom: 10px; }
+
+  .legend { left: 16px; bottom: 16px; width: 300px; max-height: calc(100vh - 140px); overflow-y: auto; }
+  .legend ul { list-style: none; display: grid; gap: 7px; }
+  .legend li { display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 8px; font-size: 13px; line-height: 1.25; }
+  .legend .g { font-size: 19px; text-align: center; }
+  .legend b { font-weight: 600; }
+  .legend small { color: var(--muted); display: block; }
+  .legend .keys { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); line-height: 1.7; }
+  kbd { font-family: inherit; background: rgba(255,255,255,.12); border-radius: 5px; padding: 1px 6px; color: var(--text); }
+
+  .settings { right: 16px; top: 120px; width: 300px; }
+  .settings .row { margin-bottom: 14px; }
+  .settings .row-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .settings output { color: var(--draw); }
+  .settings input[type=range] { width: 100%; accent-color: var(--draw); }
+  .settings small { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px; }
+  .settings .check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin-bottom: 10px; cursor: pointer; }
+  .settings h3 { font-size: 13px; font-weight: 800; color: var(--muted); margin: 4px 0 8px; }
+  .settings .sep { border-top: 1px solid var(--line); margin: 6px 0 12px; }
+  .palette { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-bottom: 10px; }
+  .chip {
+    aspect-ratio: 1; border-radius: 50%; border: 2px solid rgba(255,255,255,.25);
+    cursor: pointer; padding: 0; transition: transform .1s ease;
+  }
+  .chip:hover { transform: scale(1.12); }
+  .chip.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--draw); }
+  .custom-color { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 14px; cursor: pointer; }
+  .custom-color input { width: 36px; height: 28px; border: none; background: none; cursor: pointer; padding: 0; }
+  .size-preview { height: 104px; display: grid; place-items: center; border-radius: 12px; background: rgba(255,255,255,.05); margin-bottom: 6px; }
+  .size-preview div { border-radius: 50%; }
+  .settings { max-height: calc(100vh - 140px); overflow-y: auto; }
+  .hud-btn { background: none; border: none; color: inherit; cursor: pointer; border-radius: 12px; padding: 2px 4px; text-align: left; }
+  .hud-btn:hover { background: rgba(255,255,255,.08); }
+  .settings .perf { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
+
+  .pencil-panel { right: 16px; bottom: 16px; width: 340px; }
+  .pencil-panel .pp-text { font-size: 13px; line-height: 1.45; color: #dfe3ee; margin-bottom: 10px; }
+  .pencil-panel .pp-warn { font-size: 12.5px; line-height: 1.4; color: #ffd0a8; margin-bottom: 10px; display: none; }
+  .pencil-panel .pp-warn.show { display: block; }
+  .pencil-panel .pp-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mask-wrap { position: relative; margin-bottom: 10px; border-radius: 10px; overflow: hidden; background: #05070f; border: 1px solid var(--line); }
+  .mask-wrap canvas { display: block; width: 100%; transform: scaleX(-1); image-rendering: pixelated; }
+  .mask-wrap span { position: absolute; left: 8px; top: 6px; font-size: 11px; color: var(--muted); }
+  .target-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .target-chip i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid #fff; }
+
+  /* ---------- TOAST ---------- */
+  .toast {
+    position: fixed; top: 112px; left: 50%; transform: translate(-50%, -12px); opacity: 0;
+    display: flex; align-items: center; gap: 10px;
+    background: var(--ink-solid); border: 1px solid var(--line);
+    padding: 11px 18px; border-radius: 16px; font-size: 16px; font-weight: 600; z-index: 40;
+    box-shadow: 0 14px 40px rgba(0,0,0,.5); transition: opacity .25s ease, transform .25s ease; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast .swatch { width: 20px; height: 20px; }
+
+  /* ---------- PANTALLAS ---------- */
+  .screen { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; transition: opacity .35s ease; }
+  .screen.hidden { opacity: 0; pointer-events: none; }
+  #startScreen {
+    background:
+      radial-gradient(60vmax 60vmax at 15% 20%, rgba(111,240,200,.18), transparent 60%),
+      radial-gradient(50vmax 50vmax at 85% 80%, rgba(200,155,255,.20), transparent 60%),
+      #0c1020;
+  }
+  .start-card { max-width: 580px; }
+  .start-card h1 { font-size: clamp(40px, 8vw, 76px); font-weight: 800; line-height: .95; letter-spacing: -0.03em; margin-bottom: 18px; }
+  .start-card h1 span { display: block; -webkit-text-stroke: 2px var(--text); color: transparent; }
+  .start-card p { font-size: 17px; line-height: 1.5; color: #d3d7e4; margin-bottom: 26px; max-width: 48ch; }
+  .start-btn { font-size: 18px; font-weight: 800; padding: 16px 28px; border-radius: 18px; border: none; background: var(--draw); color: #08261d; cursor: pointer; box-shadow: 0 10px 30px rgba(111,240,200,.35); }
+  .start-btn:disabled { opacity: .6; cursor: wait; }
+  .error { margin-top: 20px; padding: 14px 16px; border-radius: 14px; background: rgba(255,72,103,.15); border: 1px solid rgba(255,72,103,.5); color: #ffd0d8; font-size: 15px; line-height: 1.45; display: none; }
+  .error.show { display: block; }
+
+  #calibScreen { background: rgba(5,8,18,.35); pointer-events: none; }
+  .calib-box { text-align: center; }
+  .calib-ring { width: 170px; height: 170px; margin: 0 auto 18px; position: relative; }
+  .calib-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .calib-ring circle { fill: none; stroke-width: 10; }
+  .calib-ring .track { stroke: rgba(255,255,255,.18); }
+  .calib-ring .bar { stroke: var(--draw); stroke-linecap: round; }
+  .calib-ring .hand { position: absolute; inset: 0; display: grid; place-items: center; font-size: 64px; }
+  .calib-title { font-size: 26px; font-weight: 800; margin-bottom: 6px; text-shadow: 0 2px 12px rgba(0,0,0,.6); }
+  .calib-sub { font-size: 16px; color: #e3e6ef; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
+
+  /* ---------- CUENTA REGRESIVA DE FOTO ---------- */
+  .countdown {
+    position: fixed; inset: 0; z-index: 35;
+    display: grid; place-items: center; pointer-events: none;
+    background: radial-gradient(circle at center, rgba(0,0,0,.05) 30%, rgba(0,0,0,.45) 100%);
+    transition: opacity .25s ease;
+  }
+  .countdown.hidden { opacity: 0; }
+  .countdown.hidden * { pointer-events: none !important; }
+  .cd-box { text-align: center; }
+  .cd-num {
+    font-size: clamp(120px, 28vw, 260px); font-weight: 800; line-height: 1;
+    color: #fff; -webkit-text-stroke: 3px rgba(0,0,0,.35);
+    text-shadow: 0 8px 40px rgba(0,0,0,.55);
+  }
+  .cd-num.pop { animation: pop 1s ease-out both; }
+  @keyframes pop {
+    0%   { transform: scale(1.5); opacity: 0; }
+    20%  { transform: scale(1);   opacity: 1; }
+    80%  { transform: scale(.94); opacity: 1; }
+    100% { transform: scale(.85); opacity: .2; }
+  }
+  .cd-text { font-size: 22px; font-weight: 700; margin-top: 6px; text-shadow: 0 2px 12px rgba(0,0,0,.7); }
+  .cd-cancel { margin-top: 18px; pointer-events: auto; }
+  .flash { position: fixed; inset: 0; background: #fff; z-index: 36; opacity: 0; pointer-events: none; }
+  .flash.go { animation: flash .6s ease-out; }
+  @keyframes flash { 0% { opacity: .95; } 100% { opacity: 0; } }
+
+  @media (max-width: 900px) {
+    .hud .divider { display: none; }
+    .mode { min-width: 0; }
+    .toast { top: 190px; }
+    .legend, .settings, .pencil-panel { width: calc(100% - 32px); left: 16px; right: 16px; }
+    .settings { top: auto; bottom: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <video id="video" playsinline muted></video>
+  <canvas id="drawCanvas"></canvas>
+  <canvas id="overlayCanvas"></canvas>
+</div>
+
+<!-- ======================= HUD ======================= -->
+<header class="hud hidden" id="hud">
+  <button class="hud-item hud-btn" id="hudColor" title="Elegir color">
+    <div class="swatch" id="swatch"></div>
+    <div class="hud-text"><span class="hud-label">Color</span><span class="hud-value" id="colorName">Rojo</span></div>
+  </button>
+  <div class="divider"></div>
+  <button class="hud-item hud-btn" id="hudSize" title="Cambiar grosor">
+    <div class="size-box"><div class="size-dot" id="sizeDot"></div></div>
+    <div class="hud-text"><span class="hud-label">Grosor</span><span class="hud-value" id="sizeText">8 px</span></div>
+  </button>
+  <div class="divider"></div>
+  <div class="hud-item" title="Tipo de pincel">
+    <div class="brush-icon" id="brushIcon">🖊️</div>
+    <div class="hud-text"><span class="hud-label">Pincel</span><span class="hud-value" id="brushName">Normal</span></div>
+  </div>
+  <div class="divider"></div>
+  <div class="mode" aria-live="polite">
+    <span class="mode-icon" id="modeIcon">👀</span>
+    <div class="hud-text"><span class="hud-label">Modo</span><span class="hud-value" id="modeText">Esperando mano</span></div>
+  </div>
+  <div class="btn-group">
+    <button class="btn" id="pencilBtn" title="Alternar entre dedo y lápiz (P)">✏️ Lápiz</button>
+    <button class="btn btn-sq" id="undoBtn" title="Deshacer (Z)" aria-label="Deshacer" disabled>↶</button>
+    <button class="btn btn-sq" id="redoBtn" title="Rehacer (Y)" aria-label="Rehacer" disabled>↷</button>
+    <button class="btn btn-danger" id="clearBtn" title="Borrar todo (C)">Borrar todo</button>
+    <button class="btn" id="saveBtn" title="Tomar foto con cuenta de 5 s (S)">📸 Foto</button>
+    <button class="btn btn-sq" id="settingsBtn" title="Ajustes de precisión" aria-label="Ajustes">⚙️</button>
+    <button class="btn btn-sq" id="helpBtn" title="Gestos (H)" aria-label="Gestos">?</button>
+  </div>
 </header>
 
-<section id="inicio" class="card">
-  <div class="warn">Esta app es una guía orientativa y no reemplaza a un profesional. Si sientes dolor, detente.</div>
-  <div class="priv">Tu imagen se procesa en tu dispositivo y no se envía a ningún servidor.
-    <details><summary>Más información</summary>
-      <p>La detección de postura funciona dentro de tu navegador. El video de la cámara no se graba, no se guarda y no sale de tu teléfono o computador.</p>
-      <p>La primera vez, la página descarga el programa de detección desde un servicio público (jsDelivr). Esa descarga no incluye imágenes tuyas. Después queda guardada y puede funcionar sin internet.</p>
-      <p>En tu dispositivo solo se guardan tus ajustes (cuenta regresiva, modo ligero e hidratación). Puedes borrarlos limpiando los datos del sitio en tu navegador.</p>
-    </details>
+<!-- ======================= LEYENDA ======================= -->
+<aside class="panel legend hidden" id="legend">
+  <h2>Gestos</h2>
+  <ul>
+    <li><span class="g">☝️</span><span><b>Solo índice</b><small>Dibujar</small></span></li>
+    <li><span class="g">✊</span><span><b>Puño o mano abierta</b><small>Pausa: mueve sin pintar</small></span></li>
+    <li><span class="g">✌️</span><span><b>Índice + medio</b><small>Mantén para cambiar color</small></span></li>
+    <li><span class="g">👆</span><span><b>Pulgar + índice en "L"</b><small>Borrador</small></span></li>
+    <li><span class="g">🤘</span><span><b>Índice + meñique</b><small>Mantén para cambiar pincel</small></span></li>
+    <li><span class="g">👌</span><span><b>Gesto OK (pinza)</b><small>Agarra y mueve todo el dibujo</small></span></li>
+    <li><span class="g">👍</span><span><b>Pulgar arriba</b><small>Mantén para tomar foto (cuenta de 5 s)</small></span></li>
+    <li><span class="g">🙌</span><span><b>Dos manos abiertas juntas</b><small>Mantén 1 s para borrar todo</small></span></li>
+  </ul>
+  <div class="keys">
+    Puedes usar las dos manos: una dibuja y la otra cambia color o pincel. Deshacer y rehacer están en los botones ↶ ↷ del panel superior.<br>
+    <kbd>Z</kbd> deshacer <kbd>Y</kbd> rehacer <kbd>C</kbd> borrar <kbd>S</kbd> foto<br>
+    <kbd>K</kbd> color <kbd>B</kbd> pincel <kbd>P</kbd> lápiz <kbd>Espacio</kbd> levantar lápiz
   </div>
-  <label class="check"><input id="ok" type="checkbox"> Entiendo el aviso</label>
-  <h2>Elige un ejercicio</h2>
-  <div id="grid"></div>
-  <details class="ajustes"><summary>Ajustes</summary>
-    <div class="fila">
-      <div><label for="cr">Cuenta regresiva antes del ejemplo</label>
-        <select id="cr"><option value="3">3 segundos</option><option value="6" selected>6 segundos</option><option value="10">10 segundos</option></select></div>
-      <div><label for="hm">Recordar hidratación cada (minutos)</label><input id="hm" type="number" min="1" value="15"></div>
+</aside>
+
+<!-- ======================= AJUSTES ======================= -->
+<aside class="panel settings hidden" id="settings">
+  <h2>Ajustes</h2>
+  <h3>Color</h3>
+  <div class="palette" id="palette"></div>
+  <label class="custom-color"><input type="color" id="customColor" value="#00e5ff"> Otro color personalizado</label>
+  <h3>Grosor</h3>
+  <div class="size-preview"><div id="sizePreview"></div></div>
+  <div class="row">
+    <div class="row-head"><span>Grosor del pincel</span><output id="sizeOut">8 px</output></div>
+    <input type="range" id="sizeRange" min="2" max="100" value="8">
+    <small>De 2 px (trazo fino) a 100 px (fondos). Atajos: <kbd>[</kbd> y <kbd>]</kbd>.</small>
+  </div>
+  <div class="sep"></div>
+  <h3>Precisión</h3>
+  <div class="row">
+    <div class="row-head"><span>Estabilizador de trazo</span><output id="lazyOut">8 px</output></div>
+    <input type="range" id="lazy" min="0" max="30" value="8">
+    <small>El pincel sigue al dedo como si lo jalaras con un hilo corto: elimina el temblor. 0 = sin estabilizador.</small>
+  </div>
+  <div class="row">
+    <div class="row-head"><span>Suavizado del trazo</span><output id="smoothOut">5</output></div>
+    <input type="range" id="smooth" min="1" max="10" value="5">
+    <small>Alto: líneas más limpias. Bajo: respuesta más inmediata.</small>
+  </div>
+  <div class="row">
+    <div class="row-head"><span>Estabilidad de gestos</span><output id="stabOut">5</output></div>
+    <input type="range" id="stab" min="3" max="9" value="5">
+    <small>Frames que se votan para confirmar un gesto. Sube si cambia de modo sin querer.</small>
+  </div>
+  <div class="row">
+    <div class="row-head"><span>Tiempo de mantener</span><output id="holdOut">1.0×</output></div>
+    <input type="range" id="hold" min="5" max="20" value="10">
+    <small>Escala el tiempo de los gestos sostenidos (color, pincel y foto).</small>
+  </div>
+  <div class="row">
+    <div class="row-head"><span>Tolerancia de color del lápiz</span><output id="tolOut">16°</output></div>
+    <input type="range" id="tol" min="5" max="40" value="16">
+    <small>Más alta detecta mejor con poca luz, pero puede confundir otros objetos.</small>
+  </div>
+  <label class="check"><input type="checkbox" id="skeleton"> Mostrar esqueleto de la mano</label>
+  <div class="perf" id="perf">Rendimiento: midiendo…</div>
+</aside>
+
+<!-- ======================= PANEL LÁPIZ ======================= -->
+<aside class="panel pencil-panel hidden" id="pencilPanel">
+  <h2 id="ppTitle">Calibrar lápiz</h2>
+  <div class="mask-wrap" id="maskWrap"><canvas id="maskPreview"></canvas><span>Vista de detección</span></div>
+  <div class="pp-text" id="ppText"></div>
+  <div class="pp-warn" id="ppWarn"></div>
+  <div class="pp-actions">
+    <button class="btn btn-primary" id="captureBtn">Capturar color</button>
+    <button class="btn" id="liftBtn">Levantar lápiz</button>
+    <button class="btn" id="recalBtn">Recalibrar</button>
+    <span class="target-chip" id="targetChip"></span>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Cuenta regresiva para la foto -->
+<div class="countdown hidden" id="countdown" aria-live="assertive">
+  <div class="cd-box">
+    <div class="cd-num" id="cdNum">5</div>
+    <div class="cd-text">Prepara tu pose 📸</div>
+    <button class="btn cd-cancel" id="cdCancel">Cancelar foto</button>
+  </div>
+</div>
+<div class="flash" id="flash"></div>
+
+<section class="screen" id="startScreen">
+  <div class="start-card">
+    <h1>Pinta en <span>el aire</span></h1>
+    <p>Dibuja con tu dedo índice o con un lápiz de punta de color. Cada combinación de dedos es una herramienta distinta. Todo se procesa en tu navegador; el video no sale de tu equipo.</p>
+    <button class="start-btn" id="startBtn">Activar cámara</button>
+    <div class="error" id="errorBox"></div>
+  </div>
+</section>
+
+<section class="screen hidden" id="calibScreen">
+  <div class="calib-box">
+    <div class="calib-ring">
+      <svg viewBox="0 0 120 120">
+        <circle class="track" cx="60" cy="60" r="54"></circle>
+        <circle class="bar" id="calibBar" cx="60" cy="60" r="54" stroke-dasharray="339.292" stroke-dashoffset="339.292"></circle>
+      </svg>
+      <div class="hand">🖐️</div>
     </div>
-    <label class="check"><input id="lig" type="checkbox"> Modo ligero (para celulares modestos: más rápido, algo menos preciso)</label>
-  </details>
-  <p id="offline" class="mu"></p>
-  <button id="instalar" class="s">Instalar la app</button>
-</section>
-
-<section id="meta" class="card">
-  <h2 id="gt"></h2>
-  <label for="gv" id="gl"></label><input id="gv" type="number" min="1">
-  <label for="gu" id="gul"></label><input id="gu" type="number" min="0">
-  <div class="warn" id="gw" style="display:none">Tu meta es mayor a lo que haces normalmente. La app será más estricta y puede pedirte que pares antes si pierdes la forma.</div>
-  <div class="fila">
-    <div><label for="ns">Número de series</label><input id="ns" type="number" min="1" max="10" value="1"></div>
-    <div id="ndBox" style="display:none"><label for="nd">Descanso entre series (segundos)</label><input id="nd" type="number" min="5" max="600" value="60"></div>
-  </div>
-  <p class="mu">La meta es por serie. El ejemplo se hace una sola vez, al inicio. La app te avisará al cumplir cada serie, o antes si tu forma se deteriora.</p>
-  <button id="gc">Continuar</button><button id="gb" class="s">Cambiar ejercicio</button>
-  <p id="err" class="mu" role="alert"></p>
-</section>
-
-<section id="etapa">
-  <p id="stp" class="paso"></p>
-  <p id="tip" class="mu"></p>
-  <div id="avisoRef" class="warn"></div>
-  <div id="lento" class="warn">La imagen va lenta en este equipo. El modo ligero puede ayudar.
-    <br><button id="activarLigero" class="s">Activar modo ligero</button><button id="ignorarLento" class="s">Seguir así</button></div>
-  <div id="zona">
-  <div id="vw"><canvas id="cv"></canvas>
-    <div id="descanso" role="timer" aria-live="polite">
-      <div>Descanso</div>
-      <div id="dTiempo">0:00</div>
-      <div id="dSig"></div>
-      <div class="mu" style="color:#fff;opacity:.85">Aprovecha de hidratarte.</div>
-      <button id="saltar">Saltar descanso</button>
-    </div>
-  </div>
-  <div id="panel">
-  <div id="bar" aria-live="polite"><div id="light"><span id="sym">…</span></div><div id="msg">Cargando…</div></div>
-  <div class="n"><div><b id="n1">0</b><br><span id="l1" class="mu"></span></div><div><b id="n2">0</b><br><span id="l2" class="mu"></span></div></div>
-  <div class="ctrl">
-    <button id="cal" style="display:none" disabled>Hacer ejemplo</button>
-    <button id="hyd" style="display:none">Ya me hidraté</button>
-    <button id="grande" class="s">Pantalla grande</button>
-    <button id="sonido" class="s" aria-pressed="false">Activar sonidos</button>
-    <button id="rc" class="s">Repetir ejemplo</button>
-    <button id="salirGrande">Salir de pantalla grande</button>
-    <button id="fin">Terminar sesión</button>
-  </div>
-  <p id="fps" class="mu"></p>
-  </div>
+    <div class="calib-title" id="calibTitle">Cargando modelo de IA…</div>
+    <div class="calib-sub" id="calibSub">Esto toma unos segundos la primera vez</div>
   </div>
 </section>
 
-<section id="resumen" class="card"></section>
-<video id="vd" playsinline muted style="display:none"></video>
-
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
 <script>
-'use strict';
+/* =========================================================================
+   PINTURA EN EL AIRE v2
+   -------------------------------------------------------------------------
+   MEJORAS DE PRECISIÓN RESPECTO A v1
+   1. MediaPipe Tasks "HandLandmarker" (más nuevo que @mediapipe/hands),
+      con aceleración GPU y modo VIDEO: más FPS y menos latencia.
+   2. Dedos evaluados con ÁNGULOS 3D de articulación (coordenadas del mundo
+      en metros), no con distancias 2D. No importa si la mano está
+      inclinada, girada o de canto.
+   3. HISTÉRESIS: umbral distinto para "entrar" y "salir" de extendido,
+      así un dedo en el límite no parpadea entre estados.
+   4. VOTACIÓN de gestos en ventana deslizante (mayoría de N frames) en
+      vez de exigir N frames idénticos: tolera lecturas sueltas erróneas
+      sin volverse lenta.
+   5. Filtro One Euro ajustable desde el panel de ajustes.
+   6. Cámara a 60 fps si el dispositivo lo permite.
 
-/* =====================================================================
-   1) RANGOS: valores iniciales SIN VALIDAR.
-   Este es el bloque que debe revisar un profesional. Cambiar estos
-   números no requiere tocar el resto del código.
-   Ángulos en grados. "dev" = desviación de la cadera respecto a la línea
-   hombro-tobillo, en proporción al largo del cuerpo (positivo = cadera baja).
-   ===================================================================== */
-const RANGOS={
-  general:{visibilidadMin:.45, suavizado:.5, cuentaRegresiva:6, capturaSeg:4, muestrasMin:20, fpsMin:12},
-  // Encuadre: qué tan de lado (separación entre hombros / largo del torso),
-  // tamaño mínimo del cuerpo en la imagen, margen al borde y segundos estable
-  encuadre:{ladoMax:.5, tamanoMin:.4, borde:.02, visPunto:.3, estableSeg:1},
-  paradas:{margenEstricto:1.2, repsMalas:3, repsMalasEstricta:2, segSinForma:5, segSinFormaEstricta:3},
-  sentadilla:{dePieMin:.6, bajadaEjemplo:125, bajadaMax:130, bajadaMargen:25, subida:160, profundidadMargen:15,
-    espaldaMargen:12, espaldaMax:45, espaldaRojo:55,
-    ejemplo:{profundidadMax:125, espaldaMax:45}},
-  iso:{rodillaFuera:135, espaldaRojo:55, espaldaMargen:12, espaldaMax:40, rodillaMargen:12,
-    ejemplo:{espaldaMax:40, rodillaMin:60}},
-  plancha:{horizMax:.45, amarillo:.05, rojo:.10, rojoAbs:.18,
-    ejemplo:{devAbsMax:.08}},
-  flexiones:{horizMax:.55, amarillo:.06, rojo:.12, rojoAbs:.18, bajadaMax:115, bajadaMargen:25, subida:155,
-    profundidadMargen:15, lineaRep:.07,
-    ejemplo:{codoMax:115, devAbsMax:.08}}
-};
+   MODO LÁPIZ (rastreo por color)
+   MediaPipe no reconoce lápices, así que rastreamos el COLOR de la punta:
+   - El usuario calibra poniendo la punta en un círculo; se mide su tono (HSV).
+   - Cada frame se reduce el video a 320 px de ancho, se crea una máscara
+     de píxeles con ese color y se agrupan en manchas (componentes conexos).
+   - Se elige la mancha más probable (tamaño, cercanía a la posición
+     anterior y a una mano detectada).
+   - Si hay una mano sosteniéndolo, la punta es el extremo de la mancha
+     MÁS LEJANO a la palma (la punta sobresale de los dedos).
+   ========================================================================= */
+(() => {
+  'use strict';
 
-/* =====================================================================
-   2) EJERCICIOS: qué mide cada uno y cómo se evalúa.
-   Cada evaluación devuelve: c (color), m (mensaje), zonas ({espalda:'y'}…),
-   dir ('sube'/'baja', para la flecha) y prob (nombre del error para el resumen).
-   ===================================================================== */
-const prom=(a,k)=>a.reduce((s,x)=>s+x[k],0)/a.length;
+  // ============================== CONFIG ==============================
+  const TV_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+  const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
 
-// Línea del cuerpo (plancha y flexiones)
-function evalLinea(M,ref,R,nombre){
-  if(M.horiz>=R.horizMax)return{pos:false,c:'n',m:'Ponte de lado en posición de '+nombre};
-  const res=(c,baja)=>({pos:true,c,zonas:{caderas:c},dir:baja?'sube':'baja',prob:baja?'caderas bajas':'caderas altas',
-    m:c==='r'?(baja?'¡Para! Caderas muy bajas':'¡Para! Caderas muy altas'):(baja?'Sube las caderas':'Baja las caderas')});
-  // Límite de seguridad: no depende del ejemplo
-  if(Math.abs(M.dev)>R.rojoAbs)return res('r',M.dev>0);
-  if(!ref)return{pos:true,c:'n',m:'Mantén tu mejor forma'};
-  const rel=M.dev-ref.dev;
-  if(Math.abs(rel)>R.rojo)return res('r',rel>0);
-  if(Math.abs(rel)>R.amarillo)return res('y',rel>0);
-  return{pos:true,c:'g',m:'Buena línea del cuerpo',zonas:{caderas:'g'}};
-}
+  const CONFIG = {
+    CALIBRATION_MS: 2000,
+    CLEAR_HOLD_MS: 1000,
+    CLEAR_COOLDOWN_MS: 2000,
+    MIN_SIZE: 2, MAX_SIZE: 100,
+    MIN_MOVE_PX: 1.2,
+    MAX_JUMP_RATIO: 0.22,
+    MAX_HISTORY: 20,
+    // Ángulo medio de las articulaciones de un dedo (180° = recto)
+    FINGER_ENTER: 155, FINGER_EXIT: 138,
+    THUMB_ANGLE_ENTER: 150, THUMB_ANGLE_EXIT: 135,
+    // Separación del pulgar respecto al nudillo del índice / tamaño de palma
+    THUMB_ABD_ENTER: 0.60, THUMB_ABD_EXIT: 0.48,
+    // Pinza 👌: distancia pulgar–índice / tamaño de palma
+    PINCH_ENTER: 0.32, PINCH_EXIT: 0.48,
+    L_ANGLE: 40,
+    PROC_W: 320,          // ancho de procesamiento del modo lápiz
+  };
 
-const EJERCICIOS={
-  sentadilla:{
-    nombre:'Sentadilla',tipo:'reps',linea:false,puntos:['sh','hp','kn','an'],metaDef:10,
-    ejemplo:'3 sentadillas',etiquetas:['repeticiones','buenas'],
-    camara:'Cámara de lado, a la altura de la cadera y a 2 o 3 metros, con el cuerpo completo a la vista.',
-    dibujo:'<circle cx="50" cy="12" r="7"/><path d="M48 22L40 42H64V66M46 28L74 30M8 68H112"/>',
-    medida:'knee',
-    enPosicion:(M,R)=>M.horiz>R.dePieMin,
-    msgFuera:'Ponte de pie, de lado a la cámara',
-    bajada:(ref,R)=>ref?Math.min(R.bajadaMax,ref.depth+R.bajadaMargen):R.bajadaEjemplo,
-    subida:R=>R.subida,
-    limEspalda:(ref,R)=>ref?Math.min(ref.lean+R.espaldaMargen,R.espaldaMax):R.espaldaMax,
-    durante(M,ref,R){
-      if(M.lean>R.espaldaRojo)return{c:'r',m:'¡Para! Espalda muy inclinada',zonas:{espalda:'r'}};
-      if(M.lean>this.limEspalda(ref,R))return{c:'y',m:'Endereza la espalda',zonas:{espalda:'y'}};
-      return{c:ref?'g':'n',m:'Bien, sigue así',zonas:{}};
-    },
-    ref:reps=>({depth:prom(reps,'min'),lean:prom(reps,'maxLean')}),
-    juzgar(q,ref,R){
-      const p=[];
-      if(q.maxLean>R.espaldaRojo)p.push({z:'espalda',c:'r',m:'Espalda muy inclinada',k:'espalda muy inclinada'});
-      else if(q.maxLean>this.limEspalda(ref,R))p.push({z:'espalda',c:'y',m:'Endereza la espalda',k:'espalda inclinada'});
-      if(q.min>ref.depth+R.profundidadMargen)p.push({z:'rodillas',c:'y',m:'Baja un poco más',k:'poca profundidad',dir:'baja'});
-      return p;
-    },
-    validar(ref,R){const a=[];
-      if(ref.depth>R.ejemplo.profundidadMax)a.push('bajaste poco');
-      if(ref.lean>R.ejemplo.espaldaMax)a.push('la espalda se inclinó mucho');return a}
-  },
+  const settings = { smoothing: 5, stability: 5, holdScale: 1, colorTol: 16, showSkeleton: false, lazyRadius: 8 };
 
-  iso:{
-    nombre:'Sentadilla isométrica',tipo:'mantener',linea:false,puntos:['sh','hp','kn','an'],metaDef:30,
-    ejemplo:'4 segundos en tu posición',etiquetas:['tiempo en buena forma','tiempo total en posición'],
-    camara:'Cámara de lado, a la altura de la cadera, con el cuerpo completo a la vista. Apoya la espalda en la pared y baja hasta tu posición.',
-    dibujo:'<path d="M26 6V66" stroke-width="6" opacity=".4"/><circle cx="42" cy="14" r="7"/><path d="M38 24V46H70V66M8 68H112"/>',
-    evaluar(M,ref,R){
-      if(M.knee>R.rodillaFuera)return{pos:false,c:'n',m:'Baja hasta tu posición'};
-      if(M.lean>R.espaldaRojo)return{pos:true,c:'r',m:'¡Para! Espalda muy inclinada',zonas:{espalda:'r'},prob:'espalda inclinada'};
-      if(!ref)return{pos:true,c:'n',m:'Mantén tu mejor forma'};
-      if(M.lean>Math.min(ref.lean+R.espaldaMargen,R.espaldaMax))return{pos:true,c:'y',m:'Endereza la espalda',zonas:{espalda:'y'},prob:'espalda inclinada'};
-      if(M.knee<ref.knee-R.rodillaMargen)return{pos:true,c:'y',m:'Sube un poco, vuelve a tu ángulo',zonas:{rodillas:'y'},dir:'sube',prob:'ángulo de rodilla'};
-      if(M.knee>ref.knee+R.rodillaMargen)return{pos:true,c:'y',m:'Baja un poco, vuelve a tu ángulo',zonas:{rodillas:'y'},dir:'baja',prob:'ángulo de rodilla'};
-      return{pos:true,c:'g',m:'Bien, mantén la posición',zonas:{}};
-    },
-    muestra:M=>({knee:M.knee,lean:M.lean}),
-    ref:s=>({knee:prom(s,'knee'),lean:prom(s,'lean')}),
-    validar(ref,R){const a=[];
-      if(ref.lean>R.ejemplo.espaldaMax)a.push('la espalda se inclinó mucho');
-      if(ref.knee<R.ejemplo.rodillaMin)a.push('bajaste demasiado');return a}
-  },
+  // 16 colores. El gesto ✌️ los recorre en este orden.
+  const COLORS = [
+    { name: 'Rojo', hex: '#ff3b3b' },      { name: 'Naranja', hex: '#ff8a1f' },
+    { name: 'Amarillo', hex: '#ffd60a' },  { name: 'Lima', hex: '#b6f23a' },
+    { name: 'Verde', hex: '#22e06b' },     { name: 'Turquesa', hex: '#1fd6b4' },
+    { name: 'Cian', hex: '#21d4fd' },      { name: 'Azul', hex: '#2f7bff' },
+    { name: 'Índigo', hex: '#5b4bff' },    { name: 'Violeta', hex: '#9d4dff' },
+    { name: 'Magenta', hex: '#ff2bd6' },   { name: 'Rosa', hex: '#ff8fc7' },
+    { name: 'Café', hex: '#8b5a2b' },      { name: 'Blanco', hex: '#ffffff' },
+    { name: 'Gris', hex: '#8f96a3' },      { name: 'Negro', hex: '#111111' },
+  ];
+  /** Color activo: de la paleta, o personalizado si colorIdx === -1. */
+  const currentColor = () => state.colorIdx >= 0 ? COLORS[state.colorIdx] : { name: 'Personalizado', hex: state.customHex };
+  const nextColorIdx = () => (state.colorIdx + 1) % COLORS.length;
+  const BRUSHES = [
+    { id: 'normal',  name: 'Normal',     icon: '🖊️' },
+    { id: 'neon',    name: 'Neón',       icon: '💡' },
+    { id: 'spray',   name: 'Aerosol',    icon: '🌫️' },
+    { id: 'rainbow', name: 'Arcoíris',   icon: '🌈' },
+    { id: 'callig',  name: 'Caligrafía', icon: '✒️' },
+  ];
 
-  plancha:{
-    nombre:'Plancha',tipo:'mantener',linea:true,puntos:['sh','hp','an'],metaDef:30,
-    ejemplo:'4 segundos en plancha',etiquetas:['tiempo en buena forma','tiempo total en plancha'],
-    camara:'Cámara de lado, a ras del suelo, con el cuerpo completo a la vista. Ponte en plancha con los antebrazos apoyados.',
-    dibujo:'<circle cx="14" cy="36" r="7"/><path d="M22 44L62 48L106 56M30 45V60H12M106 56V62M8 64H112"/>',
-    evaluar:(M,ref,R)=>evalLinea(M,ref,R,'plancha'),
-    muestra:M=>({dev:M.dev}),
-    ref:s=>({dev:prom(s,'dev')}),
-    validar(ref,R){return Math.abs(ref.dev)>R.ejemplo.devAbsMax?['las caderas no quedaron en línea']:[]}
-  },
+  const MODE_UI = {
+    DRAW:   ['Dibujando', '✍️', 'var(--draw)'],
+    ERASE:  ['Borrando', '🧽', 'var(--erase)'],
+    COLOR:  ['Cambiando color', '🎨', 'var(--color)'],
+    BRUSH:  ['Cambiando pincel', '🖌️', 'var(--color)'],
+    SAVE:   ['Confirmando foto', '📸', '#ffffff'],
+    COUNTDOWN: ['¡Posa para la foto!', '📸', '#ffffff'],
+    GRAB:   ['Moviendo dibujo', '✋', 'var(--size)'],
+    PAUSE:  ['Pausa / Navegación', '✋', 'var(--pause)'],
+    CLEAR:  ['Borrar todo…', '🙌', 'var(--danger)'],
+    NOHAND: ['Muestra tu mano', '👀', 'var(--pause)'],
+    CALIB:  ['Calibrando', '🖐️', 'var(--draw)'],
+    PENCIL: ['Lápiz dibujando', '✏️', 'var(--draw)'],
+    PENCIL_UP: ['Lápiz levantado', '⏸️', 'var(--pause)'],
+    PENCIL_LOST: ['Buscando lápiz', '🔍', 'var(--erase)'],
+    PENCIL_CALIB: ['Calibrar lápiz', '🎯', 'var(--size)'],
+  };
 
-  flexiones:{
-    nombre:'Flexiones',tipo:'reps',linea:true,puntos:['sh','el','wr','hp','an'],metaDef:10,
-    ejemplo:'3 flexiones',etiquetas:['repeticiones','buenas'],
-    camara:'Cámara de lado, a ras del suelo, con el cuerpo completo a la vista.',
-    dibujo:'<circle cx="14" cy="28" r="7"/><path d="M22 36L64 46L106 56M32 38V60M106 56V62M8 64H112"/>',
-    medida:'elb',
-    enPosicion:(M,R)=>M.horiz<R.horizMax,
-    msgFuera:'Ponte de lado en posición de flexión',
-    bajada:(ref,R)=>ref?Math.min(R.bajadaMax,ref.elb+R.bajadaMargen):R.bajadaMax,
-    subida:R=>R.subida,
-    durante:(M,ref,R)=>evalLinea(M,ref,R,'flexión'),
-    ref:reps=>({elb:prom(reps,'min'),dev:prom(reps,'devProm')}),
-    juzgar(q,ref,R){
-      const p=[],baja=q.devProm-ref.dev>0;
-      if(q.maxDevAbs>R.rojoAbs)p.push({z:'caderas',c:'r',m:baja?'Caderas muy bajas':'Caderas muy altas',k:baja?'caderas bajas':'caderas altas',dir:baja?'sube':'baja'});
-      else if(q.maxDevRel>R.lineaRep)p.push({z:'caderas',c:'y',m:baja?'Sube las caderas':'Baja las caderas',k:baja?'caderas bajas':'caderas altas',dir:baja?'sube':'baja'});
-      if(q.min>ref.elb+R.profundidadMargen)p.push({z:'codos',c:'y',m:'Baja más el pecho',k:'poca profundidad'});
-      return p;
-    },
-    validar(ref,R){const a=[];
-      if(ref.elb>R.ejemplo.codoMax)a.push('bajaste poco');
-      if(Math.abs(ref.dev)>R.ejemplo.devAbsMax)a.push('las caderas no quedaron en línea');return a}
+  // Gestos que se activan manteniéndolos (con anillo de progreso)
+  const HOLDS = {
+    COLOR: { ms: 1500, icon: '🎨', ring: () => COLORS[nextColorIdx()].hex, action: () => cycleColor() },
+    BRUSH: { ms: 1000, icon: '🖌️', ring: () => '#c89bff', action: () => cycleBrush() },
+    // 👍 confirma la foto y arranca la cuenta regresiva de 5 s
+    SAVE:  { ms: 1500, icon: '📸', ring: () => '#ffffff', action: () => startPhotoCountdown() },
+  };
+  const PHOTO_SECONDS = 5;
+  const PHOTO_COOLDOWN_MS = 2500;   // evita otra foto si el pulgar sigue arriba
+  const POINTER_GESTURES = new Set(['DRAW', 'ERASE', 'GRAB']);
+
+  const HAND_CONNECTIONS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+    [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+  const FINGERS = { index: [5,6,7,8], middle: [9,10,11,12], ring: [13,14,15,16], pinky: [17,18,19,20] };
+
+  // ============================== DOM ==============================
+  const $ = (id) => document.getElementById(id);
+  const video = $('video');
+  const drawCanvas = $('drawCanvas'), overlay = $('overlayCanvas');
+  const dctx = drawCanvas.getContext('2d');
+  const octx = overlay.getContext('2d');
+  let W = 1280, H = 720;
+  let landmarker = null, delegateUsed = '';
+
+  // ============================== ESTADO ==============================
+  const state = {
+    phase: 'idle', colorIdx: 0, customHex: '#00e5ff', brushIdx: 0, size: 8,
+    calibProgress: 0, lastT: performance.now(),
+    stroke: { last: null, lastMid: null, dist: 0, hue: 0 },
+    primaryKey: null, primaryGesture: null,
+    grab: null,
+    clearHoldStart: null, clearCooldownUntil: 0,
+    modeKey: null,
+  };
+  const handStates = new Map();
+  const history = [], redoStack = [];
+
+  // ============================== MATEMÁTICA ==============================
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const dist3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
+  const midP = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+  /** Ángulo 3D en el vértice b del triángulo a-b-c (180° = alineados). */
+  function ang3(a, b, c) {
+    const ux = a.x - b.x, uy = a.y - b.y, uz = a.z - b.z;
+    const vx = c.x - b.x, vy = c.y - b.y, vz = c.z - b.z;
+    const d = Math.hypot(ux, uy, uz) * Math.hypot(vx, vy, vz) || 1;
+    return Math.acos(clamp((ux * vx + uy * vy + uz * vz) / d, -1, 1)) * 57.29578;
   }
-};
-
-/* =====================================================================
-   3) MOTOR: cámara, detección, métricas, dibujo e interfaz.
-   No debería ser necesario tocarlo para agregar ejercicios.
-   ===================================================================== */
-const $=id=>document.getElementById(id);
-const C={n:'#6b7280',g:'#22c55e',y:'#eab308',r:'#ef4444',b:'#3b82f6'};
-const SIM={n:'…',g:'✓',y:'!',r:'✕',b:'💧'};
-const IDX={izq:[11,13,15,23,25,27],der:[12,14,16,24,26,28]},K=['sh','el','wr','hp','kn','an'];
-const MP='https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/';
-// Tramos del esqueleto y la zona a la que pertenece cada uno
-const TRAMOS=[['wr','el','codos'],['el','sh','codos'],['sh','hp','espalda'],['hp','kn','caderas'],['kn','an','rodillas']];
-const ARTIC={el:'codos',hp:'caderas',kn:'rodillas'};
-const cv=$('cv'),ctx=cv.getContext('2d'),vd=$('vd');
-const fmt=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
-const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
-const ver=(id,on)=>{$(id).style.display=on?'':'none'};
-function ang(a,b,c){const u=[a.x-b.x,a.y-b.y],v=[c.x-b.x,c.y-b.y],m=Math.hypot(...u)*Math.hypot(...v);
-  if(!m)return 180;return Math.acos(Math.max(-1,Math.min(1,(u[0]*v[0]+u[1]*v[1])/m)))*180/Math.PI}
-
-/* ---------- Ajustes guardados en el dispositivo ---------- */
-const AJ_CLAVE='semaforo-ajustes';
-function leerAjustes(){try{return JSON.parse(localStorage.getItem(AJ_CLAVE))||{}}catch(e){return{}}}
-function guardarAjustes(){try{localStorage.setItem(AJ_CLAVE,JSON.stringify({cr:$('cr').value,hm:$('hm').value,lig:$('lig').checked}))}catch(e){}}
-(()=>{const a=leerAjustes();
-  if(['3','6','10'].includes(String(a.cr)))$('cr').value=String(a.cr);
-  else $('cr').value=String(RANGOS.general.cuentaRegresiva);
-  if(a.hm)$('hm').value=a.hm;
-  if(a.lig)$('lig').checked=true;
-  ['cr','hm','lig'].forEach(id=>$(id).addEventListener('change',guardarAjustes));
-})();
-
-let S=null,pose=null,stream=null,corriendo=false,elegido=null;
-
-function nuevaSesion(id,meta,habitual,series,descanso){
-  S={id,E:EJERCICIOS[id],R:RANGOS[id],meta,habitual,series,descanso,
-    estricta:habitual>0&&meta>habitual*RANGOS.paradas.margenEstricto,
-    cuenta:parseFloat($('cr').value)||RANGOS.general.cuentaRegresiva,
-    ligero:$('lig').checked,
-    fase:'ejemplo',ref:null,cd:null,muestras:[],ejemploReps:[],baja:false,rep:null,encDesde:0,
-    serieActual:1,resultados:[],serieGuardada:false,descansoFin:0,ultimoBip:0,
-    reps:0,buenas:0,rachaMala:0,tiempoMalo:0,tBuena:0,tPos:0,errores:{},
-    terminando:false,motivo:'',hastaT:0,cur:'',zonas:{},dir:null,
-    M:{knee:170,elb:170,lean:0,dev:0,horiz:1},ultimoT:performance.now(),hidratar:false,ultimaHid:Date.now(),
-    fpsN:0,fpsT0:performance.now(),lentoAvisado:false};
-}
-
-// Cambia el semáforo: color, símbolo, mensaje y zonas a pintar
-function estado(c,m,zonas={},dir=null){
-  if(c!==S.cur){
-    S.cur=c;$('sym').textContent=SIM[c];
-    document.documentElement.style.setProperty('--estado',C[c]);
-    document.documentElement.style.setProperty('--estado-tx',c==='y'?'#14202a':'#fff');
-    sonar(c);
+  /** Ángulo 2D entre vectores a1→a2 y b1→b2 (producto punto). */
+  function angle2(a1, a2, b1, b2) {
+    const v1x = a2.x - a1.x, v1y = a2.y - a1.y, v2x = b2.x - b1.x, v2y = b2.y - b1.y;
+    const d = Math.hypot(v1x, v1y) * Math.hypot(v2x, v2y) || 1;
+    return Math.acos(clamp((v1x * v2x + v1y * v2y) / d, -1, 1)) * 57.29578;
   }
-  S.zonas=zonas;S.dir=dir;
-  if($('msg').textContent!==m)$('msg').textContent=m;
-}
-
-function contadores(){
-  if(S.E.tipo==='mantener'){$('n1').textContent=fmt(S.tBuena);$('n2').textContent=fmt(S.tPos)+' / '+fmt(S.meta)}
-  else{$('n1').textContent=S.reps+' / '+S.meta;$('n2').textContent=S.buenas}
-}
-
-function setPaso(n){
-  const meta=S.E.tipo==='mantener'?S.meta+' segundos':S.meta+' repeticiones';
-  $('stp').textContent=n===1
-    ?'Paso 1 de 2: ubícate en cuadro y haz tu ejemplo con la mejor técnica ('+S.E.ejemplo+'). Con él la app aprende tu forma correcta.'
-    :'Paso 2 de 2: '+(S.series>1?'serie '+S.serieActual+' de '+S.series:'tu serie')+'. Meta: '+meta+'.';
-}
-
-function metricas(p){
-  const a=RANGOS.general.suavizado,ema=(v,n)=>a*v+(1-a)*n,M=S.M;
-  const len=dist(p.sh,p.an)||1,yl=p.sh.y+(p.an.y-p.sh.y)*((p.hp.x-p.sh.x)/((p.an.x-p.sh.x)||1e-6));
-  M.knee=ema(M.knee,ang(p.hp,p.kn,p.an));
-  M.elb=ema(M.elb,ang(p.sh,p.el,p.wr));
-  M.lean=ema(M.lean,Math.atan2(Math.abs(p.sh.x-p.hp.x),p.hp.y-p.sh.y)*180/Math.PI);
-  M.dev=ema(M.dev,(p.hp.y-yl)/len);
-  M.horiz=Math.abs(p.sh.y-p.an.y)/len;
-}
-
-/* ---------- Encuadre: antes del ejemplo ----------
-   Devuelve un mensaje si algo falla, o '' si el encuadre está bien. */
-function revisarEncuadre(Lm,p,lado,W,H){
-  const Q=RANGOS.encuadre,E=S.E,b=Q.borde;
-  const fuera=pt=>!pt||(pt.visibility||0)<Q.visPunto||pt.x<b||pt.x>1-b||pt.y<b||pt.y>1-b;
-  const ix=k=>Lm[lado[K.indexOf(k)]];
-  if(fuera(ix('an')))return 'No se ven tus pies. Aleja el dispositivo o inclínalo hacia abajo';
-  if(fuera(Lm[0]))return 'No se ve tu cabeza. Aleja el dispositivo o inclínalo hacia arriba';
-  if(E.puntos.includes('wr')&&fuera(ix('wr')))return 'No se ven tus manos. Aleja un poco el dispositivo';
-  if(E.puntos.some(k=>fuera(ix(k))))return 'Tu cuerpo no cabe completo. Aleja un poco el dispositivo';
-  const vis=E.puntos.reduce((a,k)=>a+p[k].v,0)/E.puntos.length;
-  if(vis<RANGOS.general.visibilidadMin)return 'Te veo poco. Mejora la luz o usa ropa que contraste con el fondo';
-  // De lado: los dos hombros casi se superponen en la imagen
-  const sep=Math.hypot((Lm[11].x-Lm[12].x)*W,(Lm[11].y-Lm[12].y)*H),torso=dist(p.sh,p.hp)||1;
-  if(sep/torso>Q.ladoMax)return 'Gírate: ponte de lado a la cámara';
-  // Tamaño: el cuerpo debe ocupar una buena parte de la imagen
-  const pts=[p.sh,p.hp,p.an,{x:Lm[0].x*W,y:Lm[0].y*H}],xs=pts.map(q=>q.x),ys=pts.map(q=>q.y);
-  const tam=Math.max((Math.max(...xs)-Math.min(...xs))/W,(Math.max(...ys)-Math.min(...ys))/H);
-  if(tam<Q.tamanoMin)return 'Estás muy lejos. Acércate un poco';
-  // En posición de partida
-  if(E.tipo==='reps'){if(!E.enPosicion(S.M,S.R))return E.msgFuera}
-  else{const r=E.evaluar(S.M,null,S.R);if(!r.pos)return r.m}
-  return '';
-}
-function enEncuadre(){return S.fase==='ejemplo'&&S.cd===null&&!S.hidratar&&!S.terminando}
-function pasoEncuadre(msg,now){
-  if(msg){S.encDesde=0;$('cal').disabled=true;estado('n',msg);return}
-  // Seguridad: aunque esté bien encuadrado, si la postura es de riesgo se avisa
-  if(S.E.tipo==='mantener'){const r=S.E.evaluar(S.M,null,S.R);if(r.c==='r'){S.encDesde=0;$('cal').disabled=true;estado('r',r.m,r.zonas,r.dir);return}}
-  if(!S.encDesde)S.encDesde=now;
-  if(now-S.encDesde<RANGOS.encuadre.estableSeg*1000){$('cal').disabled=true;estado('n','Bien. Quédate así un momento…');return}
-  $('cal').disabled=false;estado('g','Encuadre listo. Pulsa "Hacer ejemplo"');
-}
-
-function guardarRef(ref,now){
-  S.ref=ref;S.fase='serie';reiniciarSerie();
-  const fuera=S.E.validar(ref,S.R);
-  if(fuera.length){
-    $('avisoRef').textContent='Tu ejemplo quedó fuera del rango recomendado: '+fuera.join(' y ')+'. Si puedes, pulsa "Repetir ejemplo". Los límites de seguridad siguen activos.';
-    $('avisoRef').style.display='block';
+  /** Punto en curva cuadrática de Bézier: (1-t)²A + 2(1-t)t·C + t²B */
+  function quadPoint(a, c, b, t) {
+    const u = 1 - t;
+    return { x: u * u * a.x + 2 * u * t * c.x + t * t * b.x, y: u * u * a.y + 2 * u * t * c.y + t * t * b.y };
   }
-  setPaso(2);contadores();
-  estado('g','Ejemplo guardado. ¡Empieza tu serie!');S.hastaT=now+1500;
-}
 
-/* ---------- Series y descansos ---------- */
-function reiniciarSerie(){
-  Object.assign(S,{tBuena:0,tPos:0,tiempoMalo:0,reps:0,buenas:0,rachaMala:0,baja:false,serieGuardada:false});
-}
-function guardarSerie(){
-  if(S.serieGuardada||S.fase==='ejemplo'||S.fase==='descanso')return;
-  S.serieGuardada=true;
-  S.resultados.push({n:S.serieActual,reps:S.reps,buenas:S.buenas,tBuena:S.tBuena,tPos:S.tPos});
-}
-function metaCumplida(){
-  if(S.serieActual<S.series){iniciarDescanso();return}
-  parar('g',S.series>1?'¡Completaste todas las series!':'¡Meta cumplida! Puedes parar',
-    S.series>1?'Completaste las '+S.series+' series':'Meta cumplida');
-}
-function iniciarDescanso(){
-  estado('g','¡Serie '+S.serieActual+' completa! Descansa');
-  guardarSerie();
-  S.fase='descanso';S.descansoFin=Date.now()+S.descanso*1000;S.ultimoBip=0;
-  S.hidratar=false;ver('hyd',false);ver('rc',false);
-  $('dSig').textContent='Siguiente: serie '+(S.serieActual+1)+' de '+S.series;
-  $('descanso').classList.add('on');actualizarDescanso();
-}
-function actualizarDescanso(){
-  const rest=Math.max(0,Math.ceil((S.descansoFin-Date.now())/1000));
-  $('dTiempo').textContent=fmt(rest);
-  if($('msg').textContent.indexOf('Descanso')!==0||rest!==S._restPrev){S._restPrev=rest;estado('n','Descanso: '+fmt(rest))}
-  if(rest<=3&&rest>0&&rest!==S.ultimoBip){S.ultimoBip=rest;sonar('y',true)}
-  if(rest<=0)empezarSerie();
-}
-function empezarSerie(){
-  if(S.fase!=='descanso')return;
-  S.serieActual++;reiniciarSerie();
-  S.fase='serie';S.ultimaHid=Date.now();S.ultimoT=performance.now();
-  $('descanso').classList.remove('on');ver('rc',true);
-  setPaso(2);contadores();
-  estado('g','¡Serie '+S.serieActual+'! Empieza');S.hastaT=performance.now()+1500;
-}
-$('saltar').onclick=empezarSerie;
-
-// Ejercicios de mantener
-function pasoMantener(dt,now){
-  const G=RANGOS.general,P=RANGOS.paradas,r=S.E.evaluar(S.M,S.ref,S.R);
-  if(S.fase==='ejemplo'){
-    if(r.c==='r'){estado('r',r.m,r.zonas,r.dir);return} // seguridad, aun sin ejemplo
-    if(S.cd===null)return;
-    const el=(now-S.cd)/1000,cr=S.cuenta,fin=cr+G.capturaSeg;
-    if(el<cr){estado('n','Prepárate… '+Math.ceil(cr-el));return}
-    if(el<fin){estado('n','Ejemplo: mantén tu mejor forma… '+Math.ceil(fin-el));if(r.pos)S.muestras.push(S.E.muestra(S.M));return}
-    S.cd=null;
-    if(S.muestras.length<G.muestrasMin){S.encDesde=0;$('cal').disabled=true;ver('cal',true);estado('n','No te vi bien. Vuelve a ubicarte y repite el ejemplo');S.hastaT=now+2000;return}
-    guardarRef(S.E.ref(S.muestras),now);return;
-  }
-  if(now<S.hastaT)return;
-  estado(r.c,r.m,r.zonas,r.dir);
-  if(r.pos){
-    S.tPos+=dt;
-    if(r.c==='g'){S.tBuena+=dt;S.tiempoMalo=0}
-    else{S.tiempoMalo+=dt;if(r.prob)S.errores[r.prob]=(S.errores[r.prob]||0)+dt}
-  }
-  contadores();
-  if(S.tPos>=S.meta)metaCumplida();
-  else if(S.tiempoMalo>(S.estricta?P.segSinFormaEstricta:P.segSinForma))parar('r','Para: perdiste la forma','Se detuvo por pérdida de forma');
-}
-
-// Ejercicios de repeticiones
-function pasoReps(now){
-  const E=S.E,R=S.R,M=S.M,pos=E.enPosicion(M,R);
-  if(S.fase==='ejemplo'){
-    if(S.cd===null)return;
-    const el=(now-S.cd)/1000;
-    if(el<S.cuenta){estado('n','Prepárate… '+Math.ceil(S.cuenta-el));return}
-  }
-  const v=M[E.medida];
-  if(pos){
-    if(!S.baja&&v<E.bajada(S.ref,R)){
-      S.baja=true;S.rep={min:v,sumDev:M.dev,n:1,maxDevRel:0,maxDevAbs:Math.abs(M.dev),maxLean:M.lean};
-    }else if(S.baja){
-      const q=S.rep;q.min=Math.min(q.min,v);q.sumDev+=M.dev;q.n++;q.maxLean=Math.max(q.maxLean,M.lean);
-      q.maxDevAbs=Math.max(q.maxDevAbs,Math.abs(M.dev));
-      if(S.ref&&S.ref.dev!==undefined)q.maxDevRel=Math.max(q.maxDevRel,Math.abs(M.dev-S.ref.dev));
-      if(v>E.subida(R)){S.baja=false;finRep(now)}
+  /** Filtro One Euro: suaviza fuerte en movimientos lentos y poco en rápidos. */
+  class OneEuroFilter {
+    constructor() { this.minCutoff = 1; this.beta = 0.015; this.dCutoff = 1; this.reset(); }
+    reset() { this.xPrev = null; this.dxPrev = 0; this.tPrev = 0; }
+    alpha(cutoff, dt) { const tau = 1 / (2 * Math.PI * cutoff); return 1 / (1 + tau / dt); }
+    filter(x, tMs) {
+      if (this.xPrev === null) { this.xPrev = x; this.tPrev = tMs; return x; }
+      const dt = Math.max((tMs - this.tPrev) / 1000, 1e-3);
+      this.tPrev = tMs;
+      const dx = (x - this.xPrev) / dt;
+      const aD = this.alpha(this.dCutoff, dt);
+      const dxHat = aD * dx + (1 - aD) * this.dxPrev;
+      const a = this.alpha(this.minCutoff + this.beta * Math.abs(dxHat), dt);
+      const xHat = a * x + (1 - a) * this.xPrev;
+      this.xPrev = xHat; this.dxPrev = dxHat;
+      return xHat;
     }
   }
-  if(now<S.hastaT||S.fase==='descanso'||S.terminando)return;
-  if(!pos){estado('n',E.msgFuera);return}
-  const r=S.baja?E.durante(M,S.fase==='serie'?S.ref:null,R):null;
-  if(S.fase==='ejemplo'){
-    if(r&&r.c==='r')estado('r',r.m,r.zonas,r.dir); // seguridad, aun sin ejemplo
-    else estado('n','Ejemplo: haz '+E.ejemplo+' con tu mejor forma ('+S.ejemploReps.length+'/3)');
-  }
-  else if(r)estado(r.c,r.m,r.zonas,r.dir);
-  else estado('g','Listo para la siguiente');
-}
+  const fx = new OneEuroFilter(), fy = new OneEuroFilter();
+  const pencilFx = new OneEuroFilter(), pencilFy = new OneEuroFilter();
+  const ALL_FILTERS = [fx, fy, pencilFx, pencilFy];
 
-function finRep(now){
-  const q=S.rep,P=RANGOS.paradas;q.devProm=q.sumDev/q.n;
-  if(S.fase==='ejemplo'){
-    S.ejemploReps.push(q);
-    if(S.ejemploReps.length>=3){guardarRef(S.E.ref(S.ejemploReps),now);S.hastaT=now+1800}
-    else{estado('n','Ejemplo: '+S.ejemploReps.length+'/3');S.hastaT=now+1200}
-    return;
+  /**
+   * SUAVIZADO EN DOS ETAPAS
+   * 1) One Euro (arriba): quita el ruido de alta frecuencia del detector.
+   * 2) ESTABILIZADOR "lazy brush" (como en Krita/Procreate): el pincel
+   *    está atado al dedo con un hilo de radio R. Mientras el dedo se
+   *    mueve dentro de ese radio, el pincel NO se mueve (adiós temblor);
+   *    cuando lo supera, el pincel es arrastrado justo lo necesario:
+   *      d = |dedo − pincel|;  si d > R:  pincel += (dedo − pincel)·(d − R)/d
+   *    Esto produce curvas muy limpias sin el retraso de un suavizado fuerte.
+   * Además, el tiempo de cada frame viene de requestVideoFrameCallback
+   * (momento real de captura), así el filtro calcula velocidades exactas.
+   */
+  class PointerSmoother {
+    constructor(filterX, filterY) { this.fx = filterX; this.fy = filterY; this.reset(); }
+    reset() { this.fx.reset(); this.fy.reset(); this.bx = null; this.by = null; this.raw = null; }
+    update(x, y, t) {
+      const sx = this.fx.filter(x, t), sy = this.fy.filter(y, t);
+      this.raw = { x: sx, y: sy };
+      if (this.bx === null) { this.bx = sx; this.by = sy; }
+      const R = settings.lazyRadius * W / 1280;      // radio relativo a la resolución
+      const dx = sx - this.bx, dy = sy - this.by, d = Math.hypot(dx, dy);
+      if (d > R) { const k = (d - R) / d; this.bx += dx * k; this.by += dy * k; }
+      return { x: this.bx, y: this.by };
+    }
   }
-  S.reps++;
-  const p=S.E.juzgar(q,S.ref,S.R);
-  p.forEach(x=>S.errores[x.k]=(S.errores[x.k]||0)+1);
-  S.rachaMala=p.length?S.rachaMala+1:0;
-  if(!p.length){S.buenas++;estado('g','Buena repetición')}
-  else{const z={};p.forEach(x=>z[x.z]=x.c);const peor=p.find(x=>x.c==='r')||p[0];estado(peor.c,peor.m,z,peor.dir)}
-  S.hastaT=now+2200;contadores();
-  if(S.reps>=S.meta)metaCumplida();
-  else if(S.rachaMala>=(S.estricta?P.repsMalasEstricta:P.repsMalas))parar('r','Para: tu forma se deterioró','Se detuvo por pérdida de forma');
-}
+  const fingerSm = new PointerSmoother(fx, fy);
+  const pencilSm = new PointerSmoother(pencilFx, pencilFy);
+  let frameT = 0;   // marca de tiempo exacta del frame de video (ms)
 
-function dibujar(p){
-  const W=cv.width,s=W/640,base=(S.cur==='y'||S.cur==='r')?'g':S.cur;
-  const col=z=>S.zonas[z]||base,mal=z=>S.zonas[z]==='y'||S.zonas[z]==='r';
-  ctx.lineCap='round';
-  // Línea de referencia hombro-tobillo (plancha y flexiones) cuando las caderas fallan
-  if(S.E.linea&&mal('caderas')&&p.sh.v>.3&&p.an.v>.3){
-    ctx.save();ctx.setLineDash([12*s,10*s]);ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=3*s;
-    ctx.beginPath();ctx.moveTo(p.sh.x,p.sh.y);ctx.lineTo(p.an.x,p.an.y);ctx.stroke();ctx.restore();
+  /** Suavizado 1..10 -> parámetros del filtro (curva exponencial). */
+  function applySmoothing() {
+    const t = (settings.smoothing - 1) / 9;
+    const minCutoff = 3.0 * Math.pow(0.12, t);   // 3.0 Hz (ágil) -> 0.36 Hz (muy suave)
+    const beta = 0.03 - 0.022 * t;
+    for (const f of ALL_FILTERS) { f.minCutoff = minCutoff; f.beta = beta; }
   }
-  TRAMOS.forEach(([a,b,z])=>{
-    if(p[a].v<=.3||p[b].v<=.3)return;
-    const grueso=mal(z);
-    if(grueso){ctx.strokeStyle='rgba(0,0,0,.55)';ctx.lineWidth=18*s;ctx.beginPath();ctx.moveTo(p[a].x,p[a].y);ctx.lineTo(p[b].x,p[b].y);ctx.stroke()}
-    ctx.strokeStyle=C[col(z)];ctx.lineWidth=(grueso?12:6)*s;
-    ctx.beginPath();ctx.moveTo(p[a].x,p[a].y);ctx.lineTo(p[b].x,p[b].y);ctx.stroke();
+
+  // ======================= ANÁLISIS DE LA MANO =======================
+  function getHandState(key, now) {
+    let hs = handStates.get(key);
+    if (!hs) {
+      hs = { ext: { thumb: false, index: false, middle: false, ring: false, pinky: false },
+             pinch: false, votes: [], stable: null, hold: { g: null, start: 0 }, seen: now };
+      handStates.set(key, hs);
+    }
+    hs.seen = now;
+    return hs;
+  }
+
+  /**
+   * Clasifica el gesto de una mano.
+   *
+   * DEDO EXTENDIDO (3D): promedio de los ángulos en sus 3 articulaciones
+   *   (muñeca–MCP–PIP, MCP–PIP–DIP, PIP–DIP–punta). Recto ≈ 165–180°,
+   *   doblado en puño ≈ 90–120°. Con histéresis:
+   *     si estaba doblado, pasa a extendido cuando supera 155°
+   *     si estaba extendido, vuelve a doblado cuando baja de 138°
+   *
+   * PULGAR: rectitud (ángulos en MCP e IP) + separación de su punta
+   *   respecto al nudillo del índice, normalizada por el tamaño de la palma.
+   *
+   * PINZA 👌: distancia 3D pulgar–índice / palma < 0.32 (sale con > 0.48).
+   */
+  function analyzeHand(lm, wl, key, now) {
+    const pts = lm.map((l) => ({ x: l.x * W, y: l.y * H }));
+    const w3 = (wl && wl.length === 21) ? wl : lm.map((l) => ({ x: l.x, y: l.y * H / W, z: l.z }));
+    const hs = getHandState(key, now);
+    const palm3 = dist3(w3[0], w3[9]) || 1e-6;
+
+    for (const [name, [m, p, d, t]] of Object.entries(FINGERS)) {
+      const straight = (ang3(w3[0], w3[m], w3[p]) + ang3(w3[m], w3[p], w3[d]) + ang3(w3[p], w3[d], w3[t])) / 3;
+      hs.ext[name] = hs.ext[name] ? straight > CONFIG.FINGER_EXIT : straight > CONFIG.FINGER_ENTER;
+    }
+
+    const tStraight = (ang3(w3[1], w3[2], w3[3]) + ang3(w3[2], w3[3], w3[4])) / 2;
+    const abd = dist3(w3[4], w3[5]) / palm3;
+    hs.ext.thumb = hs.ext.thumb
+      ? (tStraight > CONFIG.THUMB_ANGLE_EXIT && abd > CONFIG.THUMB_ABD_EXIT)
+      : (tStraight > CONFIG.THUMB_ANGLE_ENTER && abd > CONFIG.THUMB_ABD_ENTER);
+
+    const pinchD = dist3(w3[4], w3[8]) / palm3;
+    hs.pinch = hs.pinch ? pinchD < CONFIG.PINCH_EXIT : pinchD < CONFIG.PINCH_ENTER;
+
+    const { thumb, index: I, middle: M, ring: R, pinky: P } = hs.ext;
+
+    // Pulgar arriba: dirección 2->4 casi vertical hacia arriba en la imagen
+    const tdx = pts[4].x - pts[2].x, tdy = pts[4].y - pts[2].y;
+    const thumbUp = tStraight > 140 && abd > 0.5 && tdy < 0 && Math.abs(tdy) > Math.abs(tdx) * 1.2;
+    const lAngle = angle2(pts[2], pts[4], pts[5], pts[8]);
+
+    let raw = 'UNKNOWN';
+    if (hs.pinch && M && R && P)            raw = 'GRAB';    // 👌
+    else if (I && M && R && P)              raw = 'OPEN';    // 🖐️
+    else if (!I && !M && !R && !P)          raw = thumbUp ? 'SAVE' : 'FIST'; // 👍 / ✊
+    else if (I && M && !R && !P)            raw = 'COLOR';   // ✌️
+    else if (I && !M && !R && P)            raw = 'BRUSH';   // 🤘
+    else if (I && !M && !R && !P)           raw = (thumb && lAngle > CONFIG.L_ANGLE) ? 'ERASE' : 'DRAW';
+
+    // VOTACIÓN: el gesto estable es el que gana la mayoría en los últimos N frames
+    hs.votes.push(raw);
+    while (hs.votes.length > settings.stability) hs.votes.shift();
+    const counts = {};
+    let best = null, bestCount = 0;
+    for (const v of hs.votes) { counts[v] = (counts[v] || 0) + 1; if (counts[v] > bestCount) { bestCount = counts[v]; best = v; } }
+    if (bestCount >= Math.max(2, Math.ceil(settings.stability * 0.6))) hs.stable = best;
+
+    const palmIds = [0, 5, 9, 13, 17];
+    const palm = { x: palmIds.reduce((s, i) => s + pts[i].x, 0) / 5, y: palmIds.reduce((s, i) => s + pts[i].y, 0) / 5 };
+
+    return { key, pts, raw, gesture: hs.stable, hs, palm, handSize: dist(pts[0], pts[9]) || 1,
+             fullOpen: raw === 'OPEN' && thumb };
+  }
+
+  function gestureToMode(g) {
+    if (!g) return 'PAUSE';
+    if (POINTER_GESTURES.has(g) || HOLDS[g]) return g;
+    return 'PAUSE';
+  }
+
+  // ============================== HISTORIAL ==============================
+  function snapshot() {
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    c.getContext('2d').drawImage(drawCanvas, 0, 0);
+    return c;
+  }
+  function restore(c) { dctx.clearRect(0, 0, W, H); dctx.drawImage(c, 0, 0); }
+  function pushHistory() {
+    history.push(snapshot());
+    if (history.length > CONFIG.MAX_HISTORY) history.shift();
+    redoStack.length = 0;
+    updateUndoUI();
+  }
+  function undo() {
+    endStroke(); endGrab();
+    if (!history.length) { toast('No hay nada que deshacer'); return; }
+    redoStack.push(snapshot());
+    restore(history.pop());
+    updateUndoUI();
+    toast('Deshecho ↩️');
+  }
+  function redo() {
+    endStroke(); endGrab();
+    if (!redoStack.length) { toast('No hay nada que rehacer'); return; }
+    history.push(snapshot());
+    restore(redoStack.pop());
+    updateUndoUI();
+    toast('Rehecho ↪️');
+  }
+
+  // ============================== PINCELES ==============================
+  /**
+   * TRAZO FLUIDO: puntos medios + curvas cuadráticas.
+   *   Puntos:  P0 -- P1 -- P2 -- P3     Medios: M1  M2  M3
+   *   Segmento i: moveTo(M_i) -> quadraticCurveTo(P_i, M_i+1)
+   * Las curvas se unen con la misma tangente: sin esquinas.
+   * Los pinceles especiales muestrean esa misma curva.
+   */
+  function strokeColor() {
+    if (BRUSHES[state.brushIdx].id === 'rainbow') {
+      return `hsl(${(state.stroke.hue + state.stroke.dist * 0.45) % 360}, 100%, 58%)`;
+    }
+    return currentColor().hex;
+  }
+  const eraserSize = () => Math.max(40, state.size * 1.5);
+
+  function quadPath(a, c, b) { dctx.beginPath(); dctx.moveTo(a.x, a.y); dctx.quadraticCurveTo(c.x, c.y, b.x, b.y); }
+  function setLine(w, color) { dctx.lineWidth = w; dctx.lineCap = 'round'; dctx.lineJoin = 'round'; dctx.strokeStyle = color; }
+
+  function spray(p, color, size) {
+    const r = size / 2, dots = Math.round(clamp(size * 0.5, 6, 40)), dotSize = Math.max(1.3, size / 40);
+    dctx.fillStyle = color;
+    for (let k = 0; k < dots; k++) {
+      const ang = Math.random() * Math.PI * 2, rr = r * Math.sqrt(Math.random());
+      dctx.globalAlpha = 0.45 + Math.random() * 0.55;
+      dctx.fillRect(p.x + Math.cos(ang) * rr, p.y + Math.sin(ang) * rr, dotSize, dotSize);
+    }
+    dctx.globalAlpha = 1;
+  }
+
+  /** Plumilla de caligrafía a 45°: el ancho depende de la dirección del trazo. */
+  function nibQuad(p0, p1, color, size) {
+    const nx = Math.cos(Math.PI / 4) * size / 2, ny = -Math.sin(Math.PI / 4) * size / 2;
+    dctx.fillStyle = color;
+    dctx.beginPath();
+    dctx.moveTo(p0.x + nx, p0.y + ny); dctx.lineTo(p0.x - nx, p0.y - ny);
+    dctx.lineTo(p1.x - nx, p1.y - ny); dctx.lineTo(p1.x + nx, p1.y + ny);
+    dctx.closePath(); dctx.fill();
+  }
+
+  function paintDot(p, erase) {
+    dctx.save();
+    const id = BRUSHES[state.brushIdx].id, col = strokeColor();
+    if (erase) {
+      dctx.globalCompositeOperation = 'destination-out';
+      dctx.beginPath(); dctx.arc(p.x, p.y, eraserSize() / 2, 0, Math.PI * 2); dctx.fill();
+    } else if (id === 'spray') spray(p, col, state.size);
+    else if (id === 'callig') nibQuad({ x: p.x - 0.5, y: p.y }, { x: p.x + 0.5, y: p.y }, col, state.size);
+    else {
+      if (id === 'neon') { dctx.shadowBlur = Math.max(8, state.size * 1.2); dctx.shadowColor = col; }
+      dctx.fillStyle = col;
+      dctx.beginPath(); dctx.arc(p.x, p.y, state.size / 2, 0, Math.PI * 2); dctx.fill();
+    }
+    dctx.restore();
+  }
+
+  function paintSegment(a, c, b, erase) {
+    dctx.save();
+    const size = state.size, col = strokeColor();
+    if (erase) {
+      dctx.globalCompositeOperation = 'destination-out';
+      setLine(eraserSize(), '#000'); quadPath(a, c, b); dctx.stroke();
+      dctx.restore(); return;
+    }
+    switch (BRUSHES[state.brushIdx].id) {
+      case 'neon':
+        setLine(size, col); dctx.shadowBlur = Math.max(8, size * 1.2); dctx.shadowColor = col;
+        quadPath(a, c, b); dctx.stroke();
+        dctx.shadowBlur = 0; setLine(Math.max(1, size * 0.35), 'rgba(255,255,255,.9)');
+        quadPath(a, c, b); dctx.stroke();
+        break;
+      case 'spray': {
+        const len = dist(a, c) + dist(c, b), n = Math.max(1, Math.ceil(len / Math.max(2, size * 0.2)));
+        for (let i = 1; i <= n; i++) spray(quadPoint(a, c, b, i / n), col, size);
+        break;
+      }
+      case 'callig': {
+        const len = dist(a, c) + dist(c, b), n = Math.max(1, Math.ceil(len / 2));
+        let prev = a;
+        for (let i = 1; i <= n; i++) { const q = quadPoint(a, c, b, i / n); nibQuad(prev, q, col, size); prev = q; }
+        break;
+      }
+      default:
+        setLine(size, col); quadPath(a, c, b); dctx.stroke();
+    }
+    dctx.restore();
+  }
+
+  /** Agrega un punto al trazo actual (dedo o lápiz). */
+  function strokePoint(p, erase) {
+    const s = state.stroke;
+    if (s.last) {
+      const d = dist(s.last, p);
+      if (d < CONFIG.MIN_MOVE_PX) return;                 // ruido
+      if (d > W * CONFIG.MAX_JUMP_RATIO) endStroke();      // salto anómalo de tracking
+    }
+    if (!s.last) {
+      pushHistory();                                       // cada trazo es un paso deshacible
+      s.last = p; s.lastMid = p; s.dist = 0; s.hue = Math.random() * 360;
+      paintDot(p, erase);
+      return;
+    }
+    const mid = midP(s.last, p);
+    s.dist += dist(s.last, p);
+    paintSegment(s.lastMid, s.last, mid, erase);
+    s.last = p; s.lastMid = mid;
+  }
+  function endStroke() { state.stroke.last = null; state.stroke.lastMid = null; }
+
+  // ============================== ACCIONES ==============================
+  function cycleColor() {
+    state.colorIdx = nextColorIdx();
+    updateColorUI();
+    const c = currentColor();
+    toast(`Color: ${c.name}`, c.hex);
+  }
+  function cycleBrush() {
+    state.brushIdx = (state.brushIdx + 1) % BRUSHES.length;
+    updateBrushUI();
+    const b = BRUSHES[state.brushIdx];
+    toast(`Pincel: ${b.name} ${b.icon}`);
+  }
+
+  /** Grosor manual (slider de Ajustes o teclas [ ]). */
+  function setSize(v) {
+    state.size = clamp(Math.round(v), CONFIG.MIN_SIZE, CONFIG.MAX_SIZE);
+    updateSizeUI();
+  }
+
+  /** 👌 Agarrar: copia el lienzo al empezar y lo redibuja desplazado. */
+  function startGrab(p) { pushHistory(); state.grab = { snap: snapshot(), origin: p }; }
+  function moveGrab(p) {
+    const g = state.grab; if (!g) return;
+    dctx.clearRect(0, 0, W, H);
+    dctx.drawImage(g.snap, p.x - g.origin.x, p.y - g.origin.y);
+  }
+  function endGrab() { state.grab = null; }
+
+  function clearAll() {
+    endStroke(); endGrab();
+    pushHistory();
+    dctx.clearRect(0, 0, W, H);
+    toast('Lienzo limpio 🧹 (puedes deshacer)');
+  }
+
+  /** Gestos sostenidos con anillo de progreso. Devuelve el gesto si está activo. */
+  function handleHold(h, now) {
+    const def = HOLDS[h.gesture], hold = h.hs.hold;
+    if (!def) { hold.g = null; return null; }
+    if (h.gesture === 'SAVE' && (photo.active || now < photo.cooldownUntil)) { hold.g = null; return null; }
+    if (hold.g !== h.gesture) { hold.g = h.gesture; hold.start = now; }
+    const prog = clamp((now - hold.start) / (def.ms * settings.holdScale), 0, 1);
+    const anchor = { x: h.palm.x, y: h.palm.y - h.handSize * 0.9 };
+    drawRing(anchor, 30, 1, 'rgba(255,255,255,.22)', 7);
+    drawRing(anchor, 30, prog, def.ring(), 7);
+    drawLabel(anchor, def.icon, 24);
+    if (prog >= 1) { def.action(); hold.start = now + (def.cooldown || 0); }
+    return h.gesture;
+  }
+
+  /** 🙌 Dos manos abiertas, palmas cerca (< 2.8 tamaños de mano), 1 s. */
+  function checkClear(a, b, now) {
+    if (a.gesture !== 'OPEN' || b.gesture !== 'OPEN') { state.clearHoldStart = null; return false; }
+    if (dist(a.palm, b.palm) > (a.handSize + b.handSize) / 2 * 2.8) { state.clearHoldStart = null; return false; }
+    endStroke(); setModeUI('CLEAR');
+    if (now < state.clearCooldownUntil) return true;
+    if (!state.clearHoldStart) state.clearHoldStart = now;
+    const prog = clamp((now - state.clearHoldStart) / CONFIG.CLEAR_HOLD_MS, 0, 1);
+    const m = midP(a.palm, b.palm);
+    drawRing(m, 60, 1, 'rgba(255,255,255,.25)', 10);
+    drawRing(m, 60, prog, '#ff4867', 10);
+    drawLabel(m, '🧹', 34);
+    if (prog >= 1) { clearAll(); state.clearHoldStart = null; state.clearCooldownUntil = now + CONFIG.CLEAR_COOLDOWN_MS; }
+    return true;
+  }
+
+  // ============================== DIBUJO OVERLAY ==============================
+  function drawRing(p, r, progress, color, width = 5) {
+    if (progress <= 0) return;
+    octx.save();
+    octx.beginPath();
+    octx.arc(p.x, p.y, r, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+    octx.strokeStyle = color; octx.lineWidth = width; octx.lineCap = 'round'; octx.stroke();
+    octx.restore();
+  }
+  function circle(p, r, fill, stroke, lw = 2, dash = null) {
+    octx.save(); octx.beginPath(); octx.arc(p.x, p.y, Math.max(1, r), 0, Math.PI * 2);
+    if (fill) { octx.fillStyle = fill; octx.fill(); }
+    if (stroke) { if (dash) octx.setLineDash(dash); octx.strokeStyle = stroke; octx.lineWidth = lw; octx.stroke(); }
+    octx.restore();
+  }
+  /** Texto legible: el canvas está en espejo, así que volteamos localmente el texto. */
+  function drawLabel(p, text, size) {
+    octx.save();
+    octx.translate(p.x, p.y); octx.scale(-1, 1);
+    octx.font = `${size}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+    octx.textAlign = 'center'; octx.textBaseline = 'middle';
+    octx.fillText(text, 0, 1);
+    octx.restore();
+  }
+  function drawCursor(p, kind) {
+    const color = currentColor().hex;
+    switch (kind) {
+      case 'DRAW':  circle(p, Math.max(3, state.size / 2), color, 'rgba(255,255,255,.9)', 2); break;
+      case 'ERASE': circle(p, eraserSize() / 2, 'rgba(255,148,102,.18)', '#fff', 2.5, [8, 6]); break;
+      case 'GRAB':  circle(p, 22, 'rgba(255,211,77,.2)', '#ffd34d', 3); drawLabel(p, '✋', 20); break;
+      default:      circle(p, 11, null, 'rgba(255,255,255,.95)', 2.5); circle(p, 3, '#fff');
+    }
+  }
+  /** Hilo del estabilizador: une la posición real del dedo con el pincel. */
+  function drawString(sm, p, kind) {
+    if (!sm.raw || settings.lazyRadius === 0 || (kind !== 'DRAW' && kind !== 'ERASE')) return;
+    octx.save();
+    octx.strokeStyle = 'rgba(255,255,255,.55)'; octx.lineWidth = 1.5; octx.setLineDash([3, 4]);
+    octx.beginPath(); octx.moveTo(sm.raw.x, sm.raw.y); octx.lineTo(p.x, p.y); octx.stroke();
+    octx.restore();
+    circle(sm.raw, 3, 'rgba(255,255,255,.8)');
+  }
+  function drawSkeleton(info, color) {
+    octx.save();
+    octx.strokeStyle = color; octx.lineWidth = 2; octx.globalAlpha = 0.8;
+    for (const [a, b] of HAND_CONNECTIONS) {
+      octx.beginPath(); octx.moveTo(info.pts[a].x, info.pts[a].y); octx.lineTo(info.pts[b].x, info.pts[b].y); octx.stroke();
+    }
+    octx.restore();
+    for (const pt of info.pts) circle(pt, 4, color);
+  }
+
+  // ============================== MODO DEDO ==============================
+  /**
+   * Con dos manos: la que hace un gesto de puntero (dibujar, borrar,
+   * grosor, agarrar) es la principal. Los gestos sostenidos (color,
+   * pincel, deshacer, guardar) funcionan con CUALQUIER mano, así puedes
+   * dibujar con una y cambiar color con la otra.
+   */
+  function pickPrimary(infos) {
+    const cur = infos.find((i) => i.key === state.primaryKey);
+    if (cur && POINTER_GESTURES.has(cur.gesture)) return cur;
+    return infos.find((i) => POINTER_GESTURES.has(i.gesture)) || cur || infos[0];
+  }
+
+  function fingerFrame(infos, now) {
+    if (!infos.length) {
+      endStroke(); endGrab(); fingerSm.reset();
+      state.primaryKey = null; state.primaryGesture = null;
+      setModeUI('NOHAND');
+      return;
+    }
+    if (infos.length === 2 && checkClear(infos[0], infos[1], now)) return;
+
+    const primary = pickPrimary(infos);
+    if (primary.key !== state.primaryKey) {
+      endStroke(); endGrab(); fingerSm.reset();
+      state.primaryKey = primary.key; state.primaryGesture = null;
+    }
+
+    let holdMode = null;
+    for (const h of infos) { const hm = handleHold(h, now); if (hm) holdMode = hm; }
+
+    const g = primary.gesture;
+    if (g !== state.primaryGesture) {       // al cambiar de gesto: cortar trazo y reiniciar filtro
+      endStroke(); endGrab(); fingerSm.reset();
+      state.primaryGesture = g;
+    }
+
+    const src = g === 'GRAB' ? midP(primary.pts[4], primary.pts[8]) : primary.pts[8];
+    const p = fingerSm.update(src.x, src.y, frameT);
+    const mode = gestureToMode(g);
+
+    switch (g) {
+      case 'DRAW':  strokePoint(p, false); break;
+      case 'ERASE': strokePoint(p, true); break;
+      case 'GRAB':  { const q = fingerSm.raw; if (!state.grab) startGrab(q); moveGrab(q); break; }  // agarrar: sin hilo, respuesta directa
+    }
+    // Dibujando/borrando: cursor en el pincel estabilizado; en otros modos: en el dedo
+    const shown = (g === 'DRAW' || g === 'ERASE') ? p : fingerSm.raw;
+    if (!HOLDS[g]) { drawString(fingerSm, p, mode); drawCursor(shown, mode); }
+    setModeUI(holdMode || mode);
+  }
+
+  // ============================== MODO LÁPIZ ==============================
+  const pencil = { active: false, calibrating: false, target: null, lifted: false,
+                   seen: 0, lost: 0, lastErase: false, tipSmall: null };
+  let PW = 320, PH = 180, procCanvas, pctx, mask, labels, bfsQueue, maskImg, prevCtx;
+
+  function initProcessing() {
+    PW = CONFIG.PROC_W; PH = Math.round(PW * H / W);
+    procCanvas = document.createElement('canvas');
+    procCanvas.width = PW; procCanvas.height = PH;
+    pctx = procCanvas.getContext('2d', { willReadFrequently: true });
+    mask = new Uint8Array(PW * PH);
+    labels = new Int32Array(PW * PH);
+    bfsQueue = new Int32Array(PW * PH);
+    const prev = $('maskPreview');
+    prev.width = PW; prev.height = PH;
+    prevCtx = prev.getContext('2d');
+    maskImg = prevCtx.createImageData(PW, PH);
+  }
+
+  function rgbToHsv(r, g, b) {
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    const v = max / 255, s = max ? d / max : 0;
+    let h = 0;
+    if (d) {
+      if (max === r) h = ((g - b) / d) % 6; else if (max === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    return { h, s, v };
+  }
+
+  /** Mide el color en el círculo central (media circular del tono). */
+  function capturePencilColor() {
+    pctx.drawImage(video, 0, 0, PW, PH);
+    const d = pctx.getImageData(0, 0, PW, PH).data;
+    const cx = Math.round(PW / 2), cy = Math.round(PH / 2), r = Math.max(3, Math.round(PW * 0.018));
+    let sinS = 0, cosS = 0, wS = 0, sS = 0, vS = 0, nC = 0, allS = 0, allV = 0, n = 0;
+    for (let y = cy - r; y <= cy + r; y++) {
+      for (let x = cx - r; x <= cx + r; x++) {
+        if ((x - cx) ** 2 + (y - cy) ** 2 > r * r) continue;
+        const j = (y * PW + x) * 4;
+        const { h, s, v } = rgbToHsv(d[j], d[j + 1], d[j + 2]);
+        allS += s; allV += v; n++;
+        if (s > 0.25 && v > 0.15) {
+          // El tono es circular (359° ≈ 0°): se promedia como vector
+          sinS += Math.sin(h * Math.PI / 180) * s; cosS += Math.cos(h * Math.PI / 180) * s; wS += s;
+          sS += s; vS += v; nC++;
+        }
+      }
+    }
+    const chromatic = nC >= n * 0.35;
+    let h = Math.atan2(sinS, cosS) * 180 / Math.PI; if (h < 0) h += 360;
+    pencil.target = chromatic ? { chromatic, h, s: sS / nC, v: vS / nC } : { chromatic, h: 0, s: allS / n, v: allV / n };
+
+    const warn = $('ppWarn');
+    warn.classList.remove('show');
+    if (!chromatic) {
+      warn.textContent = 'La punta tiene poco color (gris, negro o blanco). La detección será inestable: usa una punta de color vivo, una tapa de marcador o cinta de color.';
+      warn.classList.add('show');
+    } else if ((h < 40 || h > 340) && pencil.target.s < 0.55) {
+      warn.textContent = 'Este color se parece al tono de piel y puede confundirse con tu mano o cara. Mejor verde, azul o fucsia intenso.';
+      warn.classList.add('show');
+    }
+    const t = pencil.target;
+    const swatch = chromatic ? `hsl(${Math.round(t.h)}, ${Math.round(t.s * 100)}%, ${Math.round(t.v * 50)}%)` : `hsl(0,0%,${Math.round(t.v * 100)}%)`;
+    $('targetChip').innerHTML = `<i style="background:${swatch}"></i> color capturado`;
+
+    pencil.calibrating = false; pencil.seen = 0; pencil.lost = 0; pencil.tipSmall = null; pencil.lifted = false;
+    pencilSm.reset();
+    updatePencilPanel();
+    toast('Lápiz calibrado ✏️');
+  }
+
+  /**
+   * Detecta la punta del lápiz:
+   *  1. Máscara HSV a 320 px de ancho.
+   *  2. Componentes conexos (BFS, 4 vecinos).
+   *  3. Puntuación = área × (×4 si está cerca de la punta anterior) × (×2 si está cerca de una mano).
+   *  4. Punta = promedio de los 6 píxeles de la mancha más lejanos a la palma
+   *     (o el centroide si no hay mano).
+   */
+  function trackPencil(infos) {
+    pctx.drawImage(video, 0, 0, PW, PH);
+    const d = pctx.getImageData(0, 0, PW, PH).data;
+    const T = pencil.target, tol = settings.colorTol, N = PW * PH;
+    const sMin = Math.max(0.22, T.s * 0.45), vMin = Math.max(0.15, T.v * 0.4), vTol = 0.06 + tol / 250;
+
+    for (let i = 0, j = 0; i < N; i++, j += 4) {
+      const r = d[j], g = d[j + 1], b = d[j + 2];
+      const max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+      const min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+      const delta = max - min, v = max / 255, s = max ? delta / max : 0;
+      let m = 0;
+      if (T.chromatic) {
+        if (s >= sMin && v >= vMin && delta) {
+          let h;
+          if (max === r) h = ((g - b) / delta) % 6; else if (max === g) h = (b - r) / delta + 2; else h = (r - g) / delta + 4;
+          h *= 60; if (h < 0) h += 360;
+          let dh = Math.abs(h - T.h); if (dh > 180) dh = 360 - dh;
+          m = dh <= tol ? 1 : 0;
+        }
+      } else {
+        m = (s < 0.25 && Math.abs(v - T.v) < vTol) ? 1 : 0;
+      }
+      mask[i] = m;
+    }
+
+    labels.fill(0);
+    const handsSmall = infos.map((h) => ({ x: h.palm.x * PW / W, y: h.palm.y * PH / H, r: h.handSize * PW / W }));
+    let best = null, label = 0;
+    const maxArea = N * 0.12;
+
+    for (let i = 0; i < N; i++) {
+      if (!mask[i] || labels[i]) continue;
+      label++;
+      let head = 0, tail = 0, area = 0, sx = 0, sy = 0, x0 = PW, x1 = 0, y0 = PH, y1 = 0;
+      bfsQueue[tail++] = i; labels[i] = label;
+      while (head < tail) {
+        const k = bfsQueue[head++], x = k % PW, y = (k - x) / PW;
+        area++; sx += x; sy += y;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x > 0 && mask[k - 1] && !labels[k - 1]) { labels[k - 1] = label; bfsQueue[tail++] = k - 1; }
+        if (x < PW - 1 && mask[k + 1] && !labels[k + 1]) { labels[k + 1] = label; bfsQueue[tail++] = k + 1; }
+        if (y > 0 && mask[k - PW] && !labels[k - PW]) { labels[k - PW] = label; bfsQueue[tail++] = k - PW; }
+        if (y < PH - 1 && mask[k + PW] && !labels[k + PW]) { labels[k + PW] = label; bfsQueue[tail++] = k + PW; }
+      }
+      if (area < 3 || area > maxArea) continue;
+      const cx = sx / area, cy = sy / area;
+      let score = area, hand = null;
+      if (pencil.tipSmall && Math.hypot(cx - pencil.tipSmall.x, cy - pencil.tipSmall.y) < 40) score *= 4;
+      for (const h of handsSmall) {
+        if (Math.hypot(cx - h.x, cy - h.y) < h.r * 3) { score *= 2; hand = h; break; }
+      }
+      if (!best || score > best.score) best = { label, score, cx, cy, hand, x0, x1, y0, y1 };
+    }
+
+    renderMask(best ? best.label : -1);
+    if (!best) { pencil.tipSmall = null; return null; }
+
+    let tx = best.cx, ty = best.cy;
+    if (best.hand) {
+      const top = [];  // 6 píxeles más lejanos a la palma
+      for (let y = best.y0; y <= best.y1; y++) {
+        for (let x = best.x0; x <= best.x1; x++) {
+          if (labels[y * PW + x] !== best.label) continue;
+          const dd = (x - best.hand.x) ** 2 + (y - best.hand.y) ** 2;
+          if (top.length < 6) { top.push({ x, y, dd }); top.sort((a, b) => a.dd - b.dd); }
+          else if (dd > top[0].dd) { top[0] = { x, y, dd }; top.sort((a, b) => a.dd - b.dd); }
+        }
+      }
+      tx = top.reduce((s, q) => s + q.x, 0) / top.length;
+      ty = top.reduce((s, q) => s + q.y, 0) / top.length;
+    }
+    pencil.tipSmall = { x: tx, y: ty };
+    // +0.5 = centro del píxel; luego escalamos a la resolución completa
+    return { tip: { x: (tx + 0.5) * W / PW, y: (ty + 0.5) * H / PH } };
+  }
+
+  function renderMask(bestLabel) {
+    const px = maskImg.data;
+    for (let i = 0, j = 0; i < PW * PH; i++, j += 4) {
+      if (labels[i] === bestLabel && bestLabel > 0) { px[j] = 111; px[j + 1] = 240; px[j + 2] = 200; px[j + 3] = 255; }
+      else if (mask[i]) { px[j] = 255; px[j + 1] = 255; px[j + 2] = 255; px[j + 3] = 120; }
+      else { px[j + 3] = 0; }
+    }
+    prevCtx.putImageData(maskImg, 0, 0);
+  }
+
+  function drawPencilTarget() {
+    const c = { x: W / 2, y: H / 2 }, r = Math.max(3, Math.round(PW * 0.018)) * W / PW;
+    circle(c, r + 18, 'rgba(0,0,0,.25)', '#ffd34d', 3, [6, 6]);
+    circle(c, r, null, '#fff', 2);
+    octx.save(); octx.strokeStyle = 'rgba(255,255,255,.7)'; octx.lineWidth = 1.5;
+    octx.beginPath(); octx.moveTo(c.x - r - 34, c.y); octx.lineTo(c.x - r - 22, c.y); octx.moveTo(c.x + r + 22, c.y); octx.lineTo(c.x + r + 34, c.y);
+    octx.moveTo(c.x, c.y - r - 34); octx.lineTo(c.x, c.y - r - 22); octx.moveTo(c.x, c.y + r + 22); octx.lineTo(c.x, c.y + r + 34); octx.stroke();
+    octx.restore();
+  }
+
+  /**
+   * En modo lápiz, las manos LEJOS de la punta son "manos de control":
+   *   🖐️ abierta = pausa (levanta el lápiz) · 👆 L = el lápiz borra
+   *   ✌️ 🤘 👍 = gestos sostenidos
+   * La mano que sostiene el lápiz se ignora para gestos.
+   */
+  function pencilFrame(infos, now) {
+    if (pencil.calibrating) {
+      drawPencilTarget();
+      pctx.drawImage(video, 0, 0, PW, PH);
+      setModeUI('PENCIL_CALIB');
+      return;
+    }
+    const det = trackPencil(infos);
+    const tip = det ? det.tip : null;
+    const cmd = infos.filter((h) => !tip || dist(h.palm, tip) > h.handSize * 2.2);
+    for (const h of infos) if (!cmd.includes(h)) h.hs.hold.g = null;
+
+    if (cmd.length === 2 && checkClear(cmd[0], cmd[1], now)) return;
+
+    let holdMode = null, pauseHand = false, eraseHand = false;
+    for (const h of cmd) {
+      const hm = handleHold(h, now); if (hm) holdMode = hm;
+      if (h.gesture === 'OPEN') pauseHand = true;
+      if (h.gesture === 'ERASE') eraseHand = true;
+    }
+
+    let mode;
+    if (det) {
+      pencil.lost = 0; pencil.seen++;
+      const p = pencilSm.update(tip.x, tip.y, frameT);
+      const down = !pencil.lifted && !pauseHand && !holdMode && pencil.seen >= 2;
+      if (eraseHand !== pencil.lastErase) { endStroke(); pencil.lastErase = eraseHand; }
+      if (down) strokePoint(p, eraseHand); else endStroke();
+      const ck = down ? (eraseHand ? 'ERASE' : 'DRAW') : 'PAUSE';
+      drawString(pencilSm, p, ck); drawCursor(down ? p : pencilSm.raw, ck);
+      mode = down ? (eraseHand ? 'ERASE' : 'PENCIL') : 'PENCIL_UP';
+    } else {
+      pencil.seen = 0; pencil.lost++;
+      // Toleramos hasta 4 frames sin detección sin cortar el trazo
+      if (pencil.lost > 4) { endStroke(); pencilSm.reset(); }
+      mode = 'PENCIL_LOST';
+    }
+    setModeUI(holdMode || mode);
+  }
+
+  function togglePencil() {
+    if (state.phase !== 'ready') return;
+    endStroke(); endGrab(); fingerSm.reset(); pencilSm.reset();
+    pencil.active = !pencil.active;
+    if (pencil.active && !pencil.target) pencil.calibrating = true;
+    $('pencilBtn').classList.toggle('on', pencil.active);
+    $('pencilBtn').textContent = pencil.active ? '☝️ Dedo' : '✏️ Lápiz';
+    $('pencilPanel').classList.toggle('hidden', !pencil.active);
+    if (pencil.active) $('legend').classList.add('hidden');
+    updatePencilPanel();
+  }
+  function startRecalibration() { endStroke(); pencil.calibrating = true; updatePencilPanel(); }
+  function toggleLift() {
+    if (!pencil.active || pencil.calibrating) return;
+    pencil.lifted = !pencil.lifted; endStroke(); updatePencilPanel();
+  }
+  function updatePencilPanel() {
+    const cal = pencil.calibrating;
+    $('ppTitle').textContent = cal ? 'Calibrar lápiz' : 'Modo lápiz';
+    $('ppText').innerHTML = cal
+      ? 'Pon la <b>punta del lápiz</b> dentro del círculo amarillo del centro, que llene el círculo blanco, y presiona <b>Capturar color</b> (o <kbd>Enter</kbd>).'
+      : 'La zona verde es lo que se reconoce como punta. Abre la otra mano 🖐️ para pausar, o haz la "L" 👆 para borrar. El grosor se cambia en ⚙️ Ajustes.';
+    $('captureBtn').style.display = cal ? '' : 'none';
+    $('liftBtn').style.display = cal ? 'none' : '';
+    $('recalBtn').style.display = cal ? 'none' : '';
+    $('targetChip').style.display = cal ? 'none' : '';
+    $('maskWrap').style.display = cal ? 'none' : '';
+    $('liftBtn').textContent = pencil.lifted ? 'Bajar lápiz' : 'Levantar lápiz';
+    $('liftBtn').classList.toggle('on', pencil.lifted);
+    if (cal) $('ppWarn').classList.remove('show');
+  }
+
+  // ============================== CALIBRACIÓN MANO ==============================
+  const CALIB_C = 2 * Math.PI * 54;
+  function updateCalibration(infos, dt) {
+    const info = infos.find((i) => i.fullOpen) || infos[0] || null;
+    const ok = !!(info && info.fullOpen);
+    state.calibProgress = clamp(state.calibProgress + (ok ? dt / CONFIG.CALIBRATION_MS : -dt / 1000), 0, 1);
+    $('calibBar').style.strokeDashoffset = CALIB_C * (1 - state.calibProgress);
+    if (ok) setCalib('Perfecto, mantén la mano quieta', `${Math.round(state.calibProgress * 100)}%`);
+    else if (info) setCalib('Abre más la mano', 'Estira y separa los 5 dedos, palma hacia la cámara');
+    else setCalib('Muestra tu mano abierta', 'Separa bien los 5 dedos frente a la cámara');
+    if (state.calibProgress >= 1) {
+      state.phase = 'ready';
+      $('calibScreen').classList.add('hidden');
+      $('legend').classList.remove('hidden');
+      toast('¡Mano detectada! Ya puedes dibujar ✋');
+    }
+  }
+  function setCalib(t, s) { $('calibTitle').textContent = t; $('calibSub').textContent = s; }
+
+  // ============================== BUCLE ==============================
+  let frames = 0, fpsT = performance.now(), lastVideoTime = -1;
+
+  function onResults(res, now) {
+    const dt = Math.min(now - state.lastT, 100);
+    state.lastT = now;
+    frames++;
+    if (now - fpsT > 1000) {
+      $('perf').textContent = `Rendimiento: ${Math.round(frames * 1000 / (now - fpsT))} fps de detección (${delegateUsed})`;
+      frames = 0; fpsT = now;
+    }
+
+    octx.clearRect(0, 0, W, H);
+    const lms = res.landmarks || [], wls = res.worldLandmarks || [];
+    const hds = res.handedness || res.handednesses || [];
+    const used = new Set();
+    const infos = lms.map((lm, i) => {
+      let key = hds[i] && hds[i][0] ? hds[i][0].categoryName : `H${i}`;
+      if (used.has(key)) key += i;
+      used.add(key);
+      return analyzeHand(lm, wls[i], key, now);
+    });
+    for (const [k, hs] of handStates) if (now - hs.seen > 600) handStates.delete(k);
+
+    if (settings.showSkeleton || state.phase === 'calibrating') {
+      for (const i of infos) drawSkeleton(i, i.fullOpen ? '#6ff0c8' : 'rgba(255,255,255,.75)');
+    }
+
+    if (state.phase === 'calibrating') { updateCalibration(infos, dt); return; }
+    if (state.phase !== 'ready') return;
+    if (photo.active) { setModeUI('COUNTDOWN'); return; }   // posando: no se dibuja nada
+    if (pencil.active) pencilFrame(infos, now); else fingerFrame(infos, now);
+  }
+
+  /**
+   * Bucle de detección. Si el navegador soporta requestVideoFrameCallback,
+   * procesamos EXACTAMENTE una vez por cada frame nuevo de la cámara y
+   * usamos su tiempo real de captura (mediaTime); así no se procesan
+   * frames repetidos ni se calculan velocidades con tiempos imprecisos.
+   */
+  const hasRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+  let lastDetectT = 0;
+  function processFrame(mediaMs) {
+    const now = performance.now();
+    frameT = mediaMs;
+    const ts = Math.max(now, lastDetectT + 1);   // detectForVideo exige tiempos crecientes
+    lastDetectT = ts;
+    try { onResults(landmarker.detectForVideo(video, ts), now); }
+    catch (e) { console.error('Detección:', e); }
+  }
+  function loop() {
+    if (hasRVFC) {
+      video.requestVideoFrameCallback((_, meta) => {
+        processFrame(meta && typeof meta.mediaTime === 'number' ? meta.mediaTime * 1000 : performance.now());
+        loop();
+      });
+      return;
+    }
+    if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+      lastVideoTime = video.currentTime;
+      processFrame(performance.now());
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ============================== UI ==============================
+  function updateColorUI() {
+    const c = currentColor();
+    $('swatch').style.background = c.hex; $('swatch').style.color = c.hex;
+    $('colorName').textContent = c.name;
+    $('sizeDot').style.background = c.hex;
+    $('sizePreview').style.background = c.hex;
+    document.querySelectorAll('.chip').forEach((el, i) => el.classList.toggle('sel', i === state.colorIdx));
+  }
+  function buildPalette() {
+    const pal = $('palette');
+    COLORS.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.className = 'chip'; b.style.background = c.hex;
+      b.title = c.name; b.setAttribute('aria-label', c.name);
+      b.addEventListener('click', () => { state.colorIdx = i; updateColorUI(); toast(`Color: ${c.name}`, c.hex); });
+      pal.appendChild(b);
+    });
+  }
+  function updateBrushUI() {
+    const b = BRUSHES[state.brushIdx];
+    $('brushIcon').textContent = b.icon; $('brushName').textContent = b.name;
+  }
+  let shownSize = -1;
+  function updateSizeUI() {
+    const s = Math.round(state.size);
+    if (s === shownSize) return;
+    shownSize = s;
+    const t = (s - CONFIG.MIN_SIZE) / (CONFIG.MAX_SIZE - CONFIG.MIN_SIZE);
+    $('sizeDot').style.width = $('sizeDot').style.height = `${3 + t * 31}px`;
+    $('sizeText').textContent = `${s} px`;
+    $('sizeOut').textContent = `${s} px`;
+    $('sizeRange').value = s;
+    const pv = Math.max(2, s);
+    $('sizePreview').style.width = $('sizePreview').style.height = `${pv}px`;
+  }
+  function updateUndoUI() {
+    $('undoBtn').disabled = !history.length;
+    $('redoBtn').disabled = !redoStack.length;
+  }
+  function setModeUI(key) {
+    if (key === state.modeKey) return;
+    state.modeKey = key;
+    const [label, icon, color] = MODE_UI[key] || MODE_UI.PAUSE;
+    $('modeText').textContent = label; $('modeIcon').textContent = icon;
+    document.documentElement.style.setProperty('--mode', color);
+  }
+  let toastTimer = null;
+  function toast(msg, colorHex) {
+    const el = $('toast');
+    el.innerHTML = '';
+    if (colorHex) {
+      const sw = document.createElement('span');
+      sw.className = 'swatch'; sw.style.background = colorHex; sw.style.color = colorHex;
+      el.appendChild(sw);
+    }
+    el.appendChild(document.createTextNode(msg));
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 1900);
+  }
+  function showError(msg) {
+    $('startScreen').classList.remove('hidden');
+    $('calibScreen').classList.add('hidden');
+    $('hud').classList.add('hidden');
+    $('errorBox').innerHTML = msg; $('errorBox').classList.add('show');
+    $('startBtn').disabled = false; $('startBtn').textContent = 'Reintentar';
+  }
+  // ============================== FOTO CON CUENTA REGRESIVA ==============================
+  /**
+   * Al confirmar la foto (👍 sostenido, botón 📸 o tecla S) se muestran
+   * 5 segundos de cuenta regresiva. Mientras tanto se pausa el dibujo y
+   * los gestos, para que puedas posar con las manos libremente sin
+   * pintar ni activar otras funciones. Al llegar a 0: flash + guardado.
+   */
+  const photo = { active: false, timer: null, cooldownUntil: 0 };
+
+  function showCount(n) {
+    const el = $('cdNum');
+    el.textContent = n;
+    el.classList.remove('pop');
+    void el.offsetWidth;            // reinicia la animación CSS
+    el.classList.add('pop');
+  }
+
+  function startPhotoCountdown() {
+    if (state.phase !== 'ready' || photo.active) return;
+    endStroke(); endGrab();
+    photo.active = true;
+    let n = PHOTO_SECONDS;
+    showCount(n);
+    $('countdown').classList.remove('hidden');
+    setModeUI('COUNTDOWN');
+    photo.timer = setInterval(() => {
+      n--;
+      if (n > 0) { showCount(n); return; }
+      finishPhoto(true);
+    }, 1000);
+  }
+
+  function finishPhoto(take) {
+    clearInterval(photo.timer);
+    $('countdown').classList.add('hidden');
+    photo.active = false;
+    photo.cooldownUntil = performance.now() + PHOTO_COOLDOWN_MS;
+    for (const hs of handStates.values()) hs.hold.g = null;
+    if (take) {
+      const f = $('flash');
+      f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+      saveImage();
+    } else {
+      toast('Foto cancelada');
+    }
+  }
+
+  function saveImage() {
+    if (state.phase !== 'ready') return;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    x.translate(W, 0); x.scale(-1, 1);       // deshacer espejo: se guarda como se ve
+    x.drawImage(video, 0, 0, W, H);
+    x.drawImage(drawCanvas, 0, 0);
+    const a = document.createElement('a');
+    a.download = `pintura-aire-${Date.now()}.png`;
+    a.href = c.toDataURL('image/png');
+    a.click();
+    toast('Foto guardada 📸');
+  }
+
+  // ============================== ARRANQUE ==============================
+  async function createLandmarker(vision, fileset, delegate) {
+    return vision.HandLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: MODEL_URL, delegate },
+      runningMode: 'VIDEO',
+      numHands: 2,
+      minHandDetectionConfidence: 0.6,
+      minHandPresenceConfidence: 0.6,
+      minTrackingConfidence: 0.55,
+    });
+  }
+
+  async function start() {
+    const btn = $('startBtn');
+    btn.disabled = true; btn.textContent = 'Iniciando…';
+    $('errorBox').classList.remove('show');
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      showError('La cámara solo funciona en <b>localhost</b> o <b>HTTPS</b>. Abre este archivo con un servidor local (por ejemplo Live Server en VS Code).');
+      return;
+    }
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 }, facingMode: 'user' },
+        audio: false,
+      });
+    } catch (err) {
+      const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+      showError(denied
+        ? 'Se bloqueó el permiso de cámara. Habilítalo desde el ícono del candado en la barra de direcciones y vuelve a intentar.'
+        : `No se encontró una cámara disponible (${err?.name || 'error'}). Revisa que ninguna otra app la esté usando.`);
+      return;
+    }
+
+    video.srcObject = stream;
+    await video.play();
+    W = video.videoWidth || 1280; H = video.videoHeight || 720;
+    for (const c of [drawCanvas, overlay]) { c.width = W; c.height = H; }
+    initProcessing();
+
+    $('startScreen').classList.add('hidden');
+    $('calibScreen').classList.remove('hidden');
+    $('hud').classList.remove('hidden');
+    setModeUI('CALIB');
+    updateColorUI(); updateBrushUI(); updateSizeUI(); updateUndoUI(); applySmoothing();
+
+    try {
+      const vision = await import(`${TV_BASE}/vision_bundle.mjs`);
+      const fileset = await vision.FilesetResolver.forVisionTasks(`${TV_BASE}/wasm`);
+      try { landmarker = await createLandmarker(vision, fileset, 'GPU'); delegateUsed = 'GPU'; }
+      catch (gpuErr) {
+        console.warn('GPU no disponible, usando CPU:', gpuErr);
+        landmarker = await createLandmarker(vision, fileset, 'CPU'); delegateUsed = 'CPU';
+      }
+    } catch (e) {
+      console.error(e);
+      stream.getTracks().forEach((t) => t.stop());
+      showError('No se pudo cargar el modelo de MediaPipe. Revisa tu conexión a internet y recarga la página.');
+      return;
+    }
+
+    setCalib('Muestra tu mano abierta', 'Separa bien los 5 dedos frente a la cámara');
+    state.phase = 'calibrating';
+    loop();
+  }
+
+  // ============================== EVENTOS ==============================
+  $('startBtn').addEventListener('click', start);
+  $('clearBtn').addEventListener('click', clearAll);
+  $('saveBtn').addEventListener('click', startPhotoCountdown);
+  $('cdCancel').addEventListener('click', () => { if (photo.active) finishPhoto(false); });
+  $('undoBtn').addEventListener('click', undo);
+  $('redoBtn').addEventListener('click', redo);
+  $('pencilBtn').addEventListener('click', togglePencil);
+  $('captureBtn').addEventListener('click', capturePencilColor);
+  $('liftBtn').addEventListener('click', toggleLift);
+  $('recalBtn').addEventListener('click', startRecalibration);
+  $('helpBtn').addEventListener('click', () => $('legend').classList.toggle('hidden'));
+  $('settingsBtn').addEventListener('click', () => $('settings').classList.toggle('hidden'));
+  $('hudColor').addEventListener('click', () => $('settings').classList.remove('hidden'));
+  $('hudSize').addEventListener('click', () => $('settings').classList.remove('hidden'));
+  $('customColor').addEventListener('input', (e) => { state.colorIdx = -1; state.customHex = e.target.value; updateColorUI(); });
+  $('customColor').addEventListener('change', () => toast('Color personalizado', state.customHex));
+  buildPalette();
+
+  const bindRange = (id, outId, fn, fmt = (v) => v) => {
+    $(id).addEventListener('input', (e) => { const v = Number(e.target.value); fn(v); $(outId).textContent = fmt(v); });
+  };
+  $('sizeRange').addEventListener('input', (e) => setSize(Number(e.target.value)));
+  bindRange('lazy', 'lazyOut', (v) => { settings.lazyRadius = v; }, (v) => v ? `${v} px` : 'apagado');
+  bindRange('smooth', 'smoothOut', (v) => { settings.smoothing = v; applySmoothing(); });
+  bindRange('stab', 'stabOut', (v) => { settings.stability = v; });
+  bindRange('hold', 'holdOut', (v) => { settings.holdScale = v / 10; }, (v) => `${(v / 10).toFixed(1)}×`);
+  bindRange('tol', 'tolOut', (v) => { settings.colorTol = v; }, (v) => `${v}°`);
+  $('skeleton').addEventListener('change', (e) => { settings.showSkeleton = e.target.checked; });
+
+  window.addEventListener('keydown', (e) => {
+    if (state.phase !== 'ready' || e.target.tagName === 'INPUT') return;
+    const k = e.key.toLowerCase();
+    if (k === ' ') { e.preventDefault(); toggleLift(); }
+    else if (k === 'enter' && pencil.calibrating) capturePencilColor();
+    else if (k === 'z') undo();
+    else if (k === 'y') redo();
+    else if (k === 'c') clearAll();
+    else if (k === 's') startPhotoCountdown();
+    else if (k === 'escape' && photo.active) finishPhoto(false);
+    else if (k === 'h') $('legend').classList.toggle('hidden');
+    else if (k === 'p') togglePencil();
+    else if (k === 'k') cycleColor();
+    else if (k === 'b') cycleBrush();
+    else if (k === '[') setSize(state.size - (state.size > 20 ? 5 : 1));
+    else if (k === ']') setSize(state.size + (state.size >= 20 ? 5 : 1));
   });
-  K.forEach(k=>{
-    if(p[k].v<=.3)return;const z=ARTIC[k],grueso=z&&mal(z);
-    ctx.fillStyle=C[z?col(z):base];ctx.beginPath();ctx.arc(p[k].x,p[k].y,(grueso?13:7)*s,0,7);ctx.fill();
-    if(grueso){ctx.strokeStyle='#fff';ctx.lineWidth=3*s;ctx.stroke()}
-  });
-  // Flecha en la cadera: hacia dónde corregir
-  if(S.dir&&(S.cur==='y'||S.cur==='r')&&p.hp.v>.3){
-    const x=p.hp.x+40*s,y=p.hp.y,d=S.dir==='sube'?-1:1,L=45*s;
-    ctx.strokeStyle=ctx.fillStyle=C[S.cur];ctx.lineWidth=7*s;
-    ctx.beginPath();ctx.moveTo(x,y-d*L/2);ctx.lineTo(x,y+d*L/2);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(x,y+d*(L/2+14*s));ctx.lineTo(x-13*s,y+d*(L/2-4*s));ctx.lineTo(x+13*s,y+d*(L/2-4*s));ctx.closePath();ctx.fill();
-  }
-}
-
-function onResults(res){
-  if(!S||S.fase==='fin')return;
-  const W=cv.width,H=cv.height;ctx.drawImage(res.image,0,0,W,H);
-  const now=performance.now(),dt=Math.min(.25,(now-S.ultimoT)/1000);S.ultimoT=now;
-  medirVelocidad(now);
-  const Lm=res.poseLandmarks;
-  if(S.fase==='descanso'){return}
-  if(!Lm){
-    if(enEncuadre())pasoEncuadre('No te veo. Ponte de lado, con el cuerpo completo a la vista',now);
-    else if(!S.terminando)estado('n','No te veo. Ponte de lado, con el cuerpo completo a la vista');
-    return;
-  }
-  const lado=ix=>{const p={};K.forEach((k,i)=>{const l=Lm[ix[i]];p[k]={x:l.x*W,y:l.y*H,v:l.visibility||0}});return p};
-  const vis=p=>S.E.puntos.reduce((a,k)=>a+p[k].v,0)/S.E.puntos.length;
-  const A=lado(IDX.izq),B=lado(IDX.der),usaIzq=vis(A)>=vis(B),p=usaIzq?A:B;
-  metricas(p);
-  if(enEncuadre()){pasoEncuadre(revisarEncuadre(Lm,p,usaIzq?IDX.izq:IDX.der,W,H),now);dibujar(p);return}
-  if(vis(p)<RANGOS.general.visibilidadMin){
-    if(!S.terminando)estado('n','No te veo bien. Aléjate o mejora la luz; cuerpo completo y de lado');return}
-  if(!S.terminando){
-    if(S.hidratar)estado('b','Hora de hidratarse');
-    else if(S.E.tipo==='mantener')pasoMantener(dt,now);
-    else pasoReps(now);
-  }
-  dibujar(p);
-}
-
-async function loop(){if(!corriendo)return;try{await pose.send({image:vd})}catch(e){}requestAnimationFrame(loop)}
-
-/* ---------- Modo ligero y medición de velocidad ---------- */
-function opcionesPose(ligero){return{modelComplexity:ligero?0:1,smoothLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5}}
-function medirVelocidad(now){
-  S.fpsN++;
-  const el=(now-S.fpsT0)/1000;
-  if(el<3)return;
-  const fps=S.fpsN/el;S.fpsN=0;S.fpsT0=now;
-  $('fps').textContent='Velocidad: '+Math.round(fps)+' cuadros por segundo'+(S.ligero?' (modo ligero)':'');
-  if(fps<RANGOS.general.fpsMin&&!S.ligero&&!S.lentoAvisado){S.lentoAvisado=true;$('lento').style.display='block'}
-}
-$('activarLigero').onclick=()=>{
-  S.ligero=true;$('lig').checked=true;guardarAjustes();
-  pose.setOptions(opcionesPose(true));
-  $('lento').style.display='none';
-};
-$('ignorarLento').onclick=()=>{$('lento').style.display='none'};
-
-/* ---------- Sonidos opcionales (no son voz) ---------- */
-let actx=null,sonidoOn=false,ultSon=0;
-const TONOS={g:[[880,.09],[1320,.13]],y:[[620,.18]],r:[[300,.14],[0,.06],[300,.14]],b:[[700,.1],[940,.1],[1250,.14]]};
-function sonar(c,forzar){
-  if(!sonidoOn||!actx||!TONOS[c])return;
-  if(!forzar&&!(S&&(S.fase==='serie'||c==='r'||c==='b')))return;
-  const ahora=performance.now();if(!forzar&&ahora-ultSon<500)return;ultSon=ahora;
-  let t=actx.currentTime;
-  TONOS[c].forEach(([f,d])=>{
-    if(f){const o=actx.createOscillator(),g=actx.createGain();o.type=c==='r'?'square':'sine';o.frequency.value=f;
-      g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.22,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);
-      o.connect(g).connect(actx.destination);o.start(t);o.stop(t+d+.02)}
-    t+=d;
-  });
-}
-$('sonido').onclick=()=>{
-  if(!actx){const AC=window.AudioContext||window.webkitAudioContext;if(AC)actx=new AC()}
-  if(actx&&actx.state==='suspended')actx.resume();
-  sonidoOn=!sonidoOn;
-  $('sonido').textContent=sonidoOn?'Silenciar sonidos':'Activar sonidos';
-  $('sonido').setAttribute('aria-pressed',sonidoOn);
-  if(sonidoOn)sonar('g',true);
-};
-
-/* ---------- Pantalla grande y pantalla encendida ---------- */
-let wl=null;
-async function mantenerPantalla(){try{if('wakeLock' in navigator)wl=await navigator.wakeLock.request('screen')}catch(e){}}
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S&&S.fase!=='fin'&&corriendo)mantenerPantalla()});
-function pantallaGrande(on){
-  document.body.classList.toggle('grande',on);
-  if(on){const r=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();if(r&&r.catch)r.catch(()=>{})}
-  else if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
-}
-$('grande').onclick=()=>pantallaGrande(true);
-$('salirGrande').onclick=()=>pantallaGrande(false);
-
-/* ---------- Flujo de pantallas ---------- */
-const svg=d=>'<svg viewBox="0 0 120 72" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';
-$('grid').innerHTML=Object.entries(EJERCICIOS).map(([id,e])=>
-  '<button class="ex" data-id="'+id+'" disabled>'+svg(e.dibujo)+'<b>'+e.nombre+'</b><span>De lado, '+(e.tipo==='mantener'?'mantener':'repeticiones')+'</span></button>').join('');
-
-$('ok').onchange=e=>document.querySelectorAll('.ex').forEach(b=>b.disabled=!e.target.checked);
-document.querySelectorAll('.ex').forEach(b=>b.onclick=()=>{
-  elegido=b.dataset.id;const e=EJERCICIOS[elegido],m=e.tipo==='mantener';
-  $('inicio').style.display='none';$('meta').style.display='block';$('gt').textContent=e.nombre;
-  $('gl').textContent=m?'¿Cuántos segundos quieres mantenerlo en cada serie?':'¿Cuántas repeticiones quieres hacer en cada serie?';
-  $('gul').textContent=m?'Segundos que mantienes normalmente (opcional)':'Repeticiones que haces normalmente (opcional)';
-  $('gv').value=e.metaDef;$('gu').value='';revisarMeta();
-});
-function revisarMeta(){const g=parseFloat($('gv').value),u=parseFloat($('gu').value);
-  $('gw').style.display=(u>0&&g>u*RANGOS.paradas.margenEstricto)?'block':'none';
-  $('ndBox').style.display=(parseInt($('ns').value)||1)>1?'block':'none'}
-$('gv').oninput=$('gu').oninput=$('ns').oninput=revisarMeta;
-$('gb').onclick=()=>{$('meta').style.display='none';$('inicio').style.display='block'};
-
-$('gc').onclick=async()=>{
-  const meta=Math.round(parseFloat($('gv').value)),habitual=parseFloat($('gu').value)||0;
-  const series=Math.min(10,Math.max(1,parseInt($('ns').value)||1)),descanso=Math.min(600,Math.max(5,parseInt($('nd').value)||60));
-  if(!(meta>0)){$('err').textContent='Escribe una meta mayor que 0.';return}
-  if(typeof Pose==='undefined'){$('err').textContent='No se pudo cargar el detector de postura. Conéctate a internet y recarga la página (después de la primera carga funciona sin conexión).';return}
-  $('err').textContent='';
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480},audio:false});
-    vd.srcObject=stream;await vd.play();
-    cv.width=vd.videoWidth||640;cv.height=vd.videoHeight||480;
-  }catch(err){$('err').textContent='No se pudo iniciar la cámara: '+err.message+'. Revisa los permisos y abre la página con https.';return}
-  nuevaSesion(elegido,meta,habitual,series,descanso);
-  const e=S.E;
-  $('meta').style.display='none';$('etapa').style.display='block';document.body.classList.add('sesion');
-  $('tip').textContent=e.camara;$('l1').textContent=e.etiquetas[0];$('l2').textContent=e.etiquetas[1];
-  contadores();setPaso(1);ver('cal',true);$('cal').disabled=true;
-  estado('n','Cargando el modelo…');
-  pose=new Pose({locateFile:f=>MP+f});
-  pose.setOptions(opcionesPose(S.ligero));
-  pose.onResults(onResults);
-  corriendo=true;loop();mantenerPantalla();
-};
-
-$('cal').onclick=()=>{S.muestras=[];S.ejemploReps=[];S.baja=false;S.cd=performance.now();ver('cal',false)};
-$('rc').onclick=()=>{
-  if(S.fase==='descanso')return;
-  Object.assign(S,{ref:null,fase:'ejemplo',cd:null,muestras:[],ejemploReps:[],errores:{},hastaT:0,encDesde:0});
-  reiniciarSerie();
-  $('avisoRef').style.display='none';setPaso(1);contadores();ver('cal',true);$('cal').disabled=true;
-};
-$('hyd').onclick=()=>{S.hidratar=false;S.ultimaHid=Date.now();ver('hyd',false);S.ultimoT=performance.now()};
-// Reloj: hidratación y descanso
-setInterval(()=>{
-  if(!S||S.fase==='fin'||S.terminando)return;
-  if(S.fase==='descanso'){actualizarDescanso();return}
-  if(S.hidratar)return;
-  const min=parseFloat($('hm').value)||15;
-  if(Date.now()-S.ultimaHid>=min*60000){S.hidratar=true;ver('hyd',true)}
-},250);
-
-$('fin').onclick=()=>{if(!S.motivo)S.motivo='Terminada por ti';terminar()};
-function parar(c,m,motivo){if(S.terminando)return;S.terminando=true;S.motivo=motivo;estado(c,m,S.zonas,null);setTimeout(terminar,2800)}
-
-function terminar(){
-  if(S.fase==='fin')return;
-  guardarSerie();
-  S.fase='fin';
-  corriendo=false;if(stream)stream.getTracks().forEach(t=>t.stop());
-  if(wl){wl.release().catch(()=>{});wl=null}
-  pantallaGrande(false);document.body.classList.remove('sesion');$('descanso').classList.remove('on');
-  const e=S.E,m=e.tipo==='mantener',RS=S.resultados;
-  const tot=RS.reduce((a,x)=>({reps:a.reps+x.reps,buenas:a.buenas+x.buenas,tBuena:a.tBuena+x.tBuena,tPos:a.tPos+x.tPos}),{reps:0,buenas:0,tBuena:0,tPos:0});
-  const err=Object.entries(S.errores).sort((a,b)=>b[1]-a[1]);
-  const lista=err.length?err.map(([k,v])=>k+': '+(m?Math.round(v)+' s':v)).join(', '):'sin errores registrados';
-  const p=m?(tot.tPos>0?tot.tBuena/tot.tPos:0):(tot.reps?tot.buenas/tot.reps:0),hay=m?tot.tPos>0:tot.reps>0;
-  const c=!hay?'n':p>=.8?'g':'y';
-  const t=!hay?'No se registró actividad.':p>=.8?'Terminaste bien la sesión.':'Terminaste la sesión, con cosas por mejorar.';
-  const linea=x=>m?fmt(x.tBuena)+' en buena forma de '+fmt(x.tPos)+' en posición':x.reps+' repeticiones, '+x.buenas+' buenas';
-  const cuerpo=m
-    ?'Tiempo en buena forma: <b>'+fmt(tot.tBuena)+'</b> de <b>'+fmt(tot.tPos)+'</b> en posición'
-    :'Repeticiones: <b>'+tot.reps+'</b>. Buenas: <b>'+tot.buenas+'</b>';
-  const porSerie=S.series>1&&RS.length?'<p>'+RS.map(x=>'Serie '+x.n+': '+linea(x)).join('<br>')+'</p>':'';
-  $('etapa').style.display='none';$('resumen').style.display='block';
-  $('resumen').innerHTML='<h2>'+e.nombre+'</h2><p class="mu">Meta: '+(m?fmt(S.meta):S.meta+' repeticiones')+(S.series>1?' por serie, '+S.series+' series':'')+'. '+S.motivo+'.</p>'+
-    '<div style="display:flex;align-items:center;gap:14px"><div style="width:56px;height:56px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:1.5rem;background:'+C[c]+';color:'+(c==='y'?'#14202a':'#fff')+'">'+SIM[c]+'</div><b style="font-size:1.15rem">'+t+'</b></div>'+
-    '<p>'+cuerpo+'<br>Errores: <b>'+lista+'</b></p>'+porSerie+
-    (err.length?'<p>Lo que más se repitió: <b>'+err[0][0]+'</b>.</p>':'')+
-    '<p class="mu">Esta app no reemplaza a un profesional. Si sentiste dolor, consulta a uno.</p><button onclick="location.reload()">Nueva sesión</button>';
-}
-
-/* ---------- Versión instalable (PWA) y uso sin internet ---------- */
-async function revisarSinInternet(){
-  try{
-    const ok=await caches.match(MP+'pose_landmark_full.tflite');
-    $('offline').textContent=ok?'✓ Lista para usar sin internet.':'Preparando el uso sin internet… mantén la conexión unos segundos.';
-    if(!ok)setTimeout(revisarSinInternet,4000);
-  }catch(e){}
-}
-if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
-  navigator.serviceWorker.register('sw.js').then(()=>navigator.serviceWorker.ready).then(revisarSinInternet)
-    .catch(()=>{$('offline').textContent=''});
-}
-let pedirInstalar=null;
-window.addEventListener('beforeinstallprompt',ev=>{ev.preventDefault();pedirInstalar=ev;$('instalar').style.display='inline-block'});
-$('instalar').onclick=async()=>{if(!pedirInstalar)return;pedirInstalar.prompt();await pedirInstalar.userChoice.catch(()=>{});pedirInstalar=null;$('instalar').style.display='none'};
-window.addEventListener('appinstalled',()=>{$('instalar').style.display='none'});
-</script></main></body></html>
+})();
+</script>
+</body>
+</html>
